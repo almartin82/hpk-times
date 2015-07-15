@@ -1,0 +1,75 @@
+---
+title: "the hpk times"
+author: "Andrew Martin"
+date: "July 14, 2015"
+output: html_document
+---
+
+```{r helpers, message=FALSE, error=FALSE, warning=FALSE, include=FALSE}
+knitr::knit('auto_email.Rmd', tangle = TRUE)
+source('auto_email.R')
+library(DT)
+```
+
+```{r global_options, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.device = 'svg', cache = FALSE)
+
+```
+
+## _day `r n_days` of the season_
+
+# Yesterday
+
+
+# Previous 7 days
+
+```{r week_standings, cache=FALSE}
+
+DT::datatable(
+  all_table_stats(hpk_week) %>% as.data.frame(), 
+  rownames = FALSE,
+  options = list(pageLength = 12, dom = 'tip')
+)
+
+DT::datatable(
+  all_table_rank(hpk_week) %>% as.data.frame(), 
+  rownames = FALSE,
+  options = list(pageLength = 12, dom = 'tip')
+)
+
+```
+
+# Previous 30 days
+
+```{r month_standings, cache=FALSE}
+
+DT::datatable(
+  all_table_stats(hpk_month) %>% as.data.frame(), 
+  rownames = FALSE,
+  options = list(pageLength = 12, dom = 'tip')
+)
+
+DT::datatable(
+  all_table_rank(hpk_month) %>% as.data.frame(), 
+  rownames = FALSE,
+  options = list(pageLength = 12, dom = 'tip')
+)
+
+```
+
+# Days in Place
+
+```{r days, cache=FALSE}
+
+DT::datatable(
+  rank_wide, 
+  rownames = FALSE,
+  options = list(pageLength = 12, dom = 'tip')
+)
+
+```
+
+# Projections
+### _to come_
+
