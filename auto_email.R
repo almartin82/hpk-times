@@ -5,7 +5,7 @@ library(zoo)
 library(ggplot2)
 library(tidyr)
 
-knitr::opts_chunk$set(cache = TRUE)
+knitr::opts_chunk$set(cache = FALSE)
 
 ## ----csv-----------------------------------------------------------------
 

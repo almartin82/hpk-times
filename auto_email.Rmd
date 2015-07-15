@@ -204,20 +204,37 @@ get yesterday's data, last week's data, last month's data
 
 ```{r yest_data}
 
-yesterday <- Sys.Date() - 2 
+season_days <- hpk_clean$date %>% unique() %>% sort()
 
+n_days <- season_days %>% length()
+
+#get the last day of stats
+yesterday <- season_days[n_days]
+
+#make a bunch of time windows - prev week, 2 weeks, etc
 hpk_yest <- hpk_clean %>% dplyr::filter(
   date == yesterday
 ) 
 
 hpk_week <- hpk_clean %>% dplyr::filter(
-  date <= yesterday & date >= yesterday - 8
+  date <= yesterday & date >= season_days[n_days-6] 
+)
+
+hpk_2week <- hpk_clean %>% dplyr::filter(
+  date <= yesterday & date >= yesterday - 13
+)
+
+hpk_3week <- hpk_clean %>% dplyr::filter(
+  date <= yesterday & date >= yesterday - 20
+)
+
+hpk_4week <- hpk_clean %>% dplyr::filter(
+  date <= yesterday & date >= yesterday - 26
 )
 
 hpk_month <- hpk_clean %>% dplyr::filter(
-  date <= yesterday & date >= yesterday - 30
+  date <= yesterday & date >= yesterday - 29
 )
-
 ```
 
 #last week standings
@@ -464,6 +481,56 @@ all_table_rank <- function(df) {
   result
 }
 
+
+best_h <- function(df) {
+  stats <- h_table_stats(df)
+  ranks <- h_table_rank(df)
+  
+  result <- stats %>%
+    dplyr::left_join(
+      ranks,
+      by = c('manager', 'team_key')
+    ) %>%
+    dplyr::left_join(short_names)
+
+  
+  names(result) <- gsub('.x', '', names(result), fixed = TRUE)
+  names(result) <- gsub('.y', '.', names(result), fixed = TRUE)
+  
+  result %>%
+    dplyr::arrange(
+      -H
+    ) %>%
+    dplyr::select_(
+      'owner', 'R', 'RBI', 'SB', 'TB', 'OBP', 'R.', 'RBI.', 'SB.', 'TB.', 'OBP.', 'H'
+    )
+}
+
+
+best_p <- function(df) {
+  stats <- p_table_stats(df)
+  ranks <- p_table_rank(df)
+  
+  result <- stats %>%
+    dplyr::left_join(
+      ranks,
+      by = c('manager', 'team_key')
+    ) %>%
+    dplyr::left_join(short_names)
+
+  
+  names(result) <- gsub('.x', '', names(result), fixed = TRUE)
+  names(result) <- gsub('.y', '.', names(result), fixed = TRUE)
+  
+  result %>%
+    dplyr::arrange(
+      -P
+    ) %>%
+    dplyr::select_(
+      'owner', 'W', 'SV', 'K', 'ERA', 'WHIP', 'W.', 'SV.', 'K.', 'ERA.', 'WHIP.', 'P'
+    )
+}
+
 ```
 
 
@@ -497,7 +564,6 @@ and  346.l.49099.t.7  should have 2 zero pitching days in same time period.
 
 # how many days in which positions
 ```{r}
-n_days <- hpk_clean$date %>% unique() %>% sort() %>% length()
 
 ranks_df <- data.frame(
   owner = character(0),
@@ -520,6 +586,15 @@ rank_counts <- ranks_df %>%
   dplyr::group_by(owner, rank) %>%
   dplyr::summarize(
     n = n()
+  )
+
+rank_avg <- ranks_df %>%
+  dplyr::group_by(owner) %>%
+  dplyr::summarize(
+    avg_pos = round(mean(rank), 1)
+  ) %>%
+  dplyr::arrange(
+    avg_pos
   )
 
 rank_wide <- tidyr::spread(rank_counts, rank, n, fill = '')

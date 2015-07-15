@@ -40,6 +40,24 @@ DT::datatable(
 
 ```
 
+# Previous 14 days
+
+```{r prev_2week, cache=FALSE}
+
+DT::datatable(
+  all_table_stats(hpk_2week) %>% as.data.frame(), 
+  rownames = FALSE,
+  options = list(pageLength = 12, dom = 'tip')
+)
+
+DT::datatable(
+  all_table_rank(hpk_2week) %>% as.data.frame(), 
+  rownames = FALSE,
+  options = list(pageLength = 12, dom = 'tip')
+)
+
+```
+
 # Previous 30 days
 
 ```{r month_standings, cache=FALSE}
@@ -52,6 +70,41 @@ DT::datatable(
 
 DT::datatable(
   all_table_rank(hpk_month) %>% as.data.frame(), 
+  rownames = FALSE,
+  options = list(pageLength = 12, dom = 'tip')
+)
+
+```
+
+# Best hitting (whole season)
+
+```{r hit_only}
+
+DT::datatable(
+  best_h(hpk_clean), 
+  options = list(pageLength = 12, dom = 'tip')
+)
+
+```
+
+# Best pitching (whole season)
+
+```{r pitch_only}
+
+DT::datatable(
+  best_p(hpk_clean), 
+  options = list(pageLength = 12, dom = 'tip')
+)
+
+```
+
+
+# Average Place
+
+```{r av_place, cache=FALSE}
+
+DT::datatable(
+  rank_avg, 
   rownames = FALSE,
   options = list(pageLength = 12, dom = 'tip')
 )
