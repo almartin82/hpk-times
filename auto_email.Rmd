@@ -197,7 +197,6 @@ infer_pa <- function(reported_obp, reported_h, reported_ab) {
 
 
 clean_obp <- function(df) {
-  print(names(df))
   
   not_obp <- df %>% dplyr::filter(!stat_name == 'OBP')
 
@@ -257,7 +256,8 @@ hpk_clean <- hpk_cur %>%
   true_era_whip %>%
   clean_values %>%
   stat_metadata %>%
-  clean_obp
+  clean_obp %>%
+  clean_rows
 
 ```
 
@@ -265,18 +265,21 @@ hpk_clean <- hpk_cur %>%
 
 ```{r helper_function}
 
-make_rolling <- function(df, high_n = 60) {
+make_rolling <- function(df, n = c(1:60)) {
   
   df <- df %>%
     dplyr::group_by(stat_id, team_key) %>%
     dplyr::arrange(team_key, stat_id, date)
   
-  for (i in c(2:high_n)) {
+  for (i in n) {
+    print(i)
     df <- df %>%
       dplyr::mutate(
-        foo = rollmeanr(x = value, k = quote(i), na.pad = TRUE)
+        foo_mean = rollmeanr(x = value, k = quote(i), na.pad = TRUE) %>% round(3),
+        foo_sd = rollapply(data = value, width = quote(i), FUN = sd, align = 'right', fill = NA) %>% round(3)
       )
-    names(df)[names(df)=='foo'] <- paste0('roll_', i)
+    names(df)[names == 'foo_mean'] <- paste0('mean_', i)
+    names(df)[names(df) == 'foo_sd'] <- paste0('sd_', i)
   }
   
   return(df)
@@ -758,7 +761,33 @@ facet_grid(
 
 need min date by season to get day 1, day 2 etc avgs
 
+```{r season_min}
 
+year_min <- hpk_hist %>%
+  dplyr::mutate(
+    year = as.numeric(format(as.Date(date), "%Y"))
+  ) %>%
+  dplyr::group_by(year) %>%
+  dplyr::summarize(
+    start_date = min(date)
+  ) 
+
+
+hpk_hist <- hpk_hist %>%
+  dplyr::mutate(
+    year = as.numeric(format(as.Date(date), "%Y"))
+  ) %>%
+  dplyr::left_join(
+    year_min
+  ) %>%
+  dplyr::mutate(
+    day_of_season = date - start_date
+  ) dplyr::select(
+    -year
+  )
+
+hpk_hist 
+```
 
 
 # errata
