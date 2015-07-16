@@ -259,13 +259,36 @@ hpk_clean <- hpk_cur %>%
   clean_obp %>%
   clean_rows
 
+year_min <- hpk_clean %>%
+  dplyr::mutate(
+    year = as.numeric(format(as.Date(date), "%Y"))
+  ) %>%
+  dplyr::group_by(year) %>%
+  dplyr::summarize(
+    start_date = min(date),
+    end_date = max(date)
+  ) 
+
+hpk_clean <- hpk_clean %>%
+  dplyr::mutate(
+    year = as.numeric(format(as.Date(date), "%Y"))
+  ) %>%
+  dplyr::left_join(
+    year_min
+  ) %>%
+  dplyr::mutate(day_of_season = date - start_date) %>%
+  dplyr::mutate(days_till_end = end_date - date) %>%
+  dplyr::select(
+    -year
+  )
+
 ```
 
 ## rolling averages
 
 ```{r helper_function}
 
-make_rolling <- function(df, n = c(1:60)) {
+make_rolling <- function(df, n = c(2:60)) {
   
   df <- df %>%
     dplyr::group_by(stat_id, team_key) %>%
@@ -278,7 +301,7 @@ make_rolling <- function(df, n = c(1:60)) {
         foo_mean = rollmeanr(x = value, k = quote(i), na.pad = TRUE) %>% round(3),
         foo_sd = rollapply(data = value, width = quote(i), FUN = sd, align = 'right', fill = NA) %>% round(3)
       )
-    names(df)[names == 'foo_mean'] <- paste0('mean_', i)
+    names(df)[names(df) == 'foo_mean'] <- paste0('mean_', i)
     names(df)[names(df) == 'foo_sd'] <- paste0('sd_', i)
   }
   
@@ -756,37 +779,88 @@ facet_grid(
 )
 ```
 
+compare mean_14, mean_21, etc
+```{r}
+
+ggplot(  data = hpk_hist %>% dplyr::filter(stat_name == 'TB')) +
+  geom_density(
+    aes(x = mean_7)
+  ) +
+  geom_density(
+    aes(x = mean_14)
+  ) +  
+  geom_density(
+    aes(x = mean_21)
+  ) +  
+  geom_density(
+    aes(x = mean_28)
+  ) + 
+  geom_density(
+    aes(x = mean_35)
+  ) +   
+  theme_bw()
+
+```
+
+ok we're going to roll with mean21
 
 # sim
 
-need min date by season to get day 1, day 2 etc avgs
+```{r}
+
+sim_season <- function(
+  yesterday_df, season_df, mean_lookback = 'mean_21', sd_lookback = 'sd_21'
+) {
+  #means and sds
+  hpk_means <- yesterday_df[, c('stat_id', 'date', 'team_key', 'stat_name', 'hit_pitch', mean_lookback)]
+  hpk_sds <- yesterday_df[, c('stat_id', 'date', 'team_key', 'stat_name', 'hit_pitch', sd_lookback)]
+  
+  #standings
+  hpk_standings <- all_table_stats(season_df)
+  
+  
+  
+}
+
+sim_season(hpk_yest, hpk_clean)
+yesterday_df <- hpk_yest
+season_df <- hpk_clean
+mean_lookback <- 'mean_21'
+sd_lookback <- 'sd_21'
+
+```
 
 ```{r season_min}
 
-year_min <- hpk_hist %>%
-  dplyr::mutate(
-    year = as.numeric(format(as.Date(date), "%Y"))
-  ) %>%
-  dplyr::group_by(year) %>%
-  dplyr::summarize(
-    start_date = min(date)
-  ) 
-
-
-hpk_hist <- hpk_hist %>%
-  dplyr::mutate(
-    year = as.numeric(format(as.Date(date), "%Y"))
-  ) %>%
-  dplyr::left_join(
-    year_min
-  ) %>%
-  dplyr::mutate(
-    day_of_season = date - start_date
-  ) dplyr::select(
-    -year
+ggplot(
+  data = hpk_hist %>% dplyr::filter(stat_name == 'AB'),
+  aes(
+    x = day_of_season,
+    y = mean_21,
+    group = team_key,
+    color = manager
   )
+) +
+geom_line(
+  alpha = 0.2,
+  size = 0.5,
+  color = 'gray80'
+) +
+theme_bw() +
+theme(
+  panel.grid = element_blank(),
+  legend.position = "bottom"
+) +
+stat_smooth(se = FALSE, size = 1, n = 20) +
+scale_color_brewer(palette = "Spectral") +
+scale_x_continuous(
+  limits = c(50, 190)
+) +
+scale_y_continuous(
+  limits = c(9, 22)
+)
 
-hpk_hist 
+
 ```
 
 
