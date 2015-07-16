@@ -98,16 +98,11 @@ DT::datatable(
 
 ```
 
-
 # Average Place
 
 ```{r av_place, cache=FALSE}
 
-DT::datatable(
-  rank_avg, 
-  rownames = FALSE,
-  options = list(pageLength = 12, dom = 'tip')
-)
+rank_avg
 
 ```
 
@@ -124,5 +119,7 @@ DT::datatable(
 ```
 
 # Projections
+
+
 ### _to come_
 

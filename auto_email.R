@@ -35,8 +35,9 @@ short_names <- data.frame(
 ## ----clean---------------------------------------------------------------
 
 clean_cols <- function(df) {
-  df <- as.data.frame(df, stringsAsFactors = FALSE)
-  return(df[, c(-6)])
+  df <- as.data.frame(df)
+
+  df[,c(1:6, 8)]
 }
 
 
@@ -51,15 +52,26 @@ clean_values <- function(df) {
   
   hpk1 <- df %>% dplyr::filter(!stat_id == 60 | is.na(stat_id))
   
-  hpk2 <- df %>% dplyr::filter(stat_id == 60) %>%
+  hpk2 <- df %>% dplyr::filter(stat_id == 60) 
+  
+  avg <- hpk2 %>%
     dplyr::rowwise() %>%
     dplyr::mutate(
-      value = eval(parse(text=value))
+      value = eval(parse(text = value))
     )
   
-  hpk2$value <- round(hpk2$value, 5)
+  h  <- hpk2
+  ab <- hpk2
+  h$value <- matrix(unlist(strsplit(h$value, split = '/')), ncol = 2, byrow = TRUE)[,1]
+  ab$value <- matrix(unlist(strsplit(ab$value, split = '/')), ncol = 2, byrow = TRUE)[,2]
+  h$stat_id <- NA
+  ab$stat_id <- NA
+  h$stat_name <- 'H'
+  ab$stat_name <- 'AB'
+  
+  avg$value <- round(avg$value, 5)
     
-  cleaned <- rbind(hpk1, hpk2)
+  cleaned <- rbind(hpk1, h, ab, avg)
   
   cleaned$value <- as.numeric(cleaned$value)
   
@@ -141,6 +153,85 @@ true_era_whip <- function(df) {
   dplyr::bind_rows(tbl_df(df), era_df, whip_df)
 }
 
+
+infer_pa <- function(reported_obp, reported_h, reported_ab) {
+  pa <- c(1:60)
+  combs <- expand.grid(pa, pa)
+  names(combs) <- c('ob', 'pa')
+  combs$obp <- round(combs$ob / combs$pa, 3)
+  
+  #PA always bigger than AB, ob > h
+  possible <- combs %>% dplyr::filter(
+    pa >= quote(reported_ab) &
+    ob >= quote(reported_h) &
+    obp >= quote(reported_obp)
+  )
+  
+  possible$obp_diff <- (possible$obp - reported_obp) %>% 
+    scale(center = FALSE) %>% magrittr::raise_to_power(2) %>% round(5)
+  possible$pa_diff <- (possible$pa - reported_ab) %>% 
+    scale(center = FALSE) %>% magrittr::raise_to_power(2) %>% round(5)
+  
+  possible$combined_diff <- possible$obp_diff + possible$pa_diff
+  
+  #return
+  list(
+    possible[possible$combined_diff == min(possible$combined_diff), 'ob'][1],
+    possible[possible$combined_diff == min(possible$combined_diff), 'pa'][1]
+  )
+}
+
+
+clean_obp <- function(df) {
+  print(names(df))
+  
+  not_obp <- df %>% dplyr::filter(!stat_name == 'OBP')
+
+  #need three things: obp, avg, and ab
+  is_obp <- df %>% dplyr::filter(stat_name == 'OBP')
+  
+  h <- df %>% dplyr::filter(stat_name == 'H')
+  h <- h[, c('value', 'team_key', 'date')]
+  names(h)[names(h)=='value'] <- 'H'
+  
+  ab <- df %>% dplyr::filter(stat_name == 'AB')
+  ab <- ab[, c('value', 'team_key', 'date')]
+  names(ab)[names(ab)=='value'] <- 'AB'
+
+  munge <- is_obp %>%
+    dplyr::left_join(h) %>%
+    dplyr::left_join(ab)
+  
+  munge$OB <- NA
+  munge$PA <- NA
+  munge <- as.data.frame(munge)
+  for (i in 1:nrow(munge)) {
+    this_pa <- infer_pa(munge[i, 'value'], munge[i, 'H'], munge[i, 'AB'])
+    munge[i, 'OB'] <- this_pa[[1]]
+    munge[i, 'PA'] <- this_pa[[2]]
+  }
+  
+  ob <- munge %>%
+    dplyr::select(
+      stat_id, OB, date, team_key, manager, team_name, stat_name, hit_pitch
+    )
+  names(ob)[names(ob)=='OB'] <- 'value'
+  ob$stat_name <- 'OB'
+  ob$stat_id <- NA
+  
+  pa <- munge %>%
+    dplyr::select(
+      stat_id, PA, date, team_key, manager, team_name, stat_name, hit_pitch
+    )
+  names(pa)[names(pa) == 'PA'] <- 'value'
+  pa$stat_name <- 'PA'
+  pa$stat_id <- NA
+
+  rbind(ob, pa, not_obp, is_obp)
+}
+
+
+
 ## ----clean_df------------------------------------------------------------
 
 hpk_clean <- hpk_cur %>%
@@ -148,7 +239,8 @@ hpk_clean <- hpk_cur %>%
   clean_rows %>%
   true_era_whip %>%
   clean_values %>%
-  stat_metadata
+  stat_metadata %>%
+  clean_obp
 
 
 ## ----helper_function-----------------------------------------------------
@@ -178,27 +270,44 @@ hpk_clean <- make_rolling(hpk_clean)
 
 ## ----yest_data-----------------------------------------------------------
 
-yesterday <- Sys.Date() - 2 
+season_days <- hpk_clean$date %>% unique() %>% sort()
 
+n_days <- season_days %>% length()
+
+#get the last day of stats
+yesterday <- season_days[n_days]
+
+#make a bunch of time windows - prev week, 2 weeks, etc
 hpk_yest <- hpk_clean %>% dplyr::filter(
   date == yesterday
 ) 
 
 hpk_week <- hpk_clean %>% dplyr::filter(
-  date <= yesterday & date >= yesterday - 8
+  date <= yesterday & date >= season_days[n_days-6] 
+)
+
+hpk_2week <- hpk_clean %>% dplyr::filter(
+  date <= yesterday & date >= yesterday - 13
+)
+
+hpk_3week <- hpk_clean %>% dplyr::filter(
+  date <= yesterday & date >= yesterday - 20
+)
+
+hpk_4week <- hpk_clean %>% dplyr::filter(
+  date <= yesterday & date >= yesterday - 26
 )
 
 hpk_month <- hpk_clean %>% dplyr::filter(
-  date <= yesterday & date >= yesterday - 30
+  date <= yesterday & date >= yesterday - 29
 )
-
 
 ## ----standings-----------------------------------------------------------
 
 h_points <- function(df) {
   h_total <- df %>% 
     dplyr::filter(
-      stat_name %in% c('R', 'RBI', 'SB', 'TB', 'OBP')
+      stat_name %in% c('R', 'RBI', 'SB', 'TB', 'OB', 'PA')
     ) %>% 
     dplyr::group_by(
       team_key, stat_name
@@ -208,6 +317,9 @@ h_points <- function(df) {
       n = n()
     )
   
+  #h conversion here
+  h_total <- convert_h_stats(h_total)
+
   h_points <- h_total %>% 
     dplyr::group_by(stat_name) %>%
     dplyr::mutate(
@@ -295,6 +407,36 @@ convert_p_stats <- function(df) {
 }
 
 
+convert_h_stats <- function(df) {
+  #non rate vs rate
+  non_rate <- df %>%
+    dplyr::filter(
+      stat_name %in% c('R', 'RBI', 'SB', 'TB')
+    )
+  rate <- df %>%
+    dplyr::filter(
+      stat_name %in% c('OB')
+    )
+  
+  pa <- df %>%
+    dplyr::filter(stat_name == 'PA')
+  
+  names(pa)[names(pa) == 'total_value'] <- 'PA'
+  
+  #join rate to pa
+  rate <- rate %>%
+    dplyr::left_join(
+      pa[, c('team_key', 'PA')],
+      by = 'team_key'
+    )
+  
+  rate$total_value <- rate$total_value / rate$PA
+  rate$stat_name <- 'OBP'
+  
+  dplyr::bind_rows(rate, non_rate)
+}
+
+
 h_totals <- function(df) {
   h_points(df) %>%
     dplyr::group_by(team_key, n) %>%
@@ -307,7 +449,7 @@ h_totals <- function(df) {
 h_table_rank <- function(df) {
   
   df_detail <- h_points(df)
-  df_points_wide <- tidyr::spread(df_detail[, c(1:2, 5)], stat_name, rank)
+  df_points_wide <- tidyr::spread(df_detail[, c('team_key', 'stat_name', 'rank')], stat_name, rank)
   
   df_total <- h_totals(df)
   
@@ -328,7 +470,7 @@ h_table_stats <- function(df) {
   
   df_detail <- h_points(df)
   df_stats_wide <- tidyr::spread(df_detail[, c(1:4)], stat_name, total_value)
-  df_stats_wide$OBP <- round(df_stats_wide$OBP / df_stats_wide$n, 3)
+  df_stats_wide$OBP <- round(df_stats_wide$OBP, 3)
   
   df_total <- h_totals(df)
   
@@ -434,7 +576,58 @@ all_table_rank <- function(df) {
 }
 
 
+best_h <- function(df) {
+  stats <- h_table_stats(df)
+  ranks <- h_table_rank(df)
+  
+  result <- stats %>%
+    dplyr::left_join(
+      ranks,
+      by = c('manager', 'team_key')
+    ) %>%
+    dplyr::left_join(short_names)
+
+  
+  names(result) <- gsub('.x', '', names(result), fixed = TRUE)
+  names(result) <- gsub('.y', '.', names(result), fixed = TRUE)
+  
+  result %>%
+    dplyr::arrange(
+      -H
+    ) %>%
+    dplyr::select_(
+      'owner', 'R', 'RBI', 'SB', 'TB', 'OBP', 'R.', 'RBI.', 'SB.', 'TB.', 'OBP.', 'H'
+    )
+}
+
+
+best_p <- function(df) {
+  stats <- p_table_stats(df)
+  ranks <- p_table_rank(df)
+  
+  result <- stats %>%
+    dplyr::left_join(
+      ranks,
+      by = c('manager', 'team_key')
+    ) %>%
+    dplyr::left_join(short_names)
+
+  
+  names(result) <- gsub('.x', '', names(result), fixed = TRUE)
+  names(result) <- gsub('.y', '.', names(result), fixed = TRUE)
+  
+  result %>%
+    dplyr::arrange(
+      -P
+    ) %>%
+    dplyr::select_(
+      'owner', 'W', 'SV', 'K', 'ERA', 'WHIP', 'W.', 'SV.', 'K.', 'ERA.', 'WHIP.', 'P'
+    )
+}
+
+
 ## ----try_it, eval = FALSE------------------------------------------------
+## 
 ## h_table_rank(hpk_week) %>% as.data.frame()
 ## h_table_rank(hpk_month) %>% as.data.frame()
 ## 
@@ -452,7 +645,6 @@ all_table_rank <- function(df) {
 ## 
 
 ## ------------------------------------------------------------------------
-n_days <- hpk_clean$date %>% unique() %>% sort() %>% length()
 
 ranks_df <- data.frame(
   owner = character(0),
@@ -462,6 +654,7 @@ ranks_df <- data.frame(
 )
 
 for (i in hpk_clean$date %>% unique() %>% sort()) {
+  print(i)
   through_today <- hpk_clean %>% dplyr::filter(date <= i)
   today_ranks <- all_table_rank(through_today)
   
@@ -475,6 +668,15 @@ rank_counts <- ranks_df %>%
   dplyr::group_by(owner, rank) %>%
   dplyr::summarize(
     n = n()
+  )
+
+rank_avg <- ranks_df %>%
+  dplyr::group_by(owner) %>%
+  dplyr::summarize(
+    avg_pos = round(mean(rank), 1)
+  ) %>%
+  dplyr::arrange(
+    avg_pos
   )
 
 rank_wide <- tidyr::spread(rank_counts, rank, n, fill = '')
@@ -492,4 +694,17 @@ facet_grid(
  facets = stat_name ~ .,
  scales = 'free'
 )
+
+## ------------------------------------------------------------------------
+hpk_clean %>%
+  dplyr::filter(team_key == '346.l.49099.t.5' & stat_name == 'SB') %>%
+  dplyr::group_by(team_key, stat_name) %>%
+  dplyr::mutate(
+    cumsum = cumsum(value)
+  ) %>%
+  dplyr::select(
+    date, cumsum
+  ) %>%
+  as.data.frame()
+
 
