@@ -6,8 +6,8 @@ output: html_document
 ---
 
 ```{r helpers, message=FALSE, error=FALSE, warning=FALSE, include=FALSE}
-knitr::knit('auto_email.Rmd', tangle = TRUE)
-source('auto_email.R')
+knitr::knit('cur_hpk_prep.Rmd', tangle = TRUE)
+source('cur_hpk_prep.R')
 library(DT)
 ```
 

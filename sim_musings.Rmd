@@ -1,0 +1,159 @@
+---
+title: "sim_musings"
+author: "Andrew Martin"
+date: "July 16, 2015"
+output: html_document
+---
+
+
+```{r helpers, message=FALSE, error=FALSE, warning=FALSE, include=FALSE}
+knitr::knit('cur_hpk_prep.Rmd', tangle = TRUE)
+source('cur_hpk_prep.R')
+library(DT)
+```
+
+```{r try_it, eval = FALSE}
+
+h_table_rank(hpk_week) %>% as.data.frame()
+h_table_rank(hpk_month) %>% as.data.frame()
+
+h_table_stats(hpk_week) %>% as.data.frame()
+h_table_stats(hpk_month) %>% as.data.frame()
+
+p_table_rank(hpk_week) %>% as.data.frame()
+p_table_rank(hpk_month) %>% as.data.frame()
+
+p_table_stats(hpk_week) %>% as.data.frame()
+p_table_stats(hpk_month) %>% as.data.frame()
+
+all_table_stats(hpk_month) %>% as.data.frame()
+all_table_rank(hpk_month) %>% as.data.frame()
+
+```
+
+
+#vs hist dist
+ok!  now that we have rolling data, compare to historic dist
+
+
+for each owner/stat, how do they compare?
+
+
+
+per stat, compare to previous distributions
+
+```{r}
+ggplot(
+  data = hpk_hist %>% dplyr::filter(hit_pitch == 'hit' & scoring == TRUE),
+  aes(
+    x = roll_7
+  )
+) +
+stat_density() +
+theme_bw() +
+facet_grid(
+ facets = stat_name ~ .,
+ scales = 'free'
+)
+```
+
+compare mean_14, mean_21, etc
+```{r}
+
+ggplot(  data = hpk_hist %>% dplyr::filter(stat_name == 'TB')) +
+  geom_density(
+    aes(x = mean_7)
+  ) +
+  geom_density(
+    aes(x = mean_14)
+  ) +  
+  geom_density(
+    aes(x = mean_21)
+  ) +  
+  geom_density(
+    aes(x = mean_28)
+  ) + 
+  geom_density(
+    aes(x = mean_35)
+  ) +   
+  theme_bw()
+
+```
+
+ok we're going to roll with mean21
+
+# sim
+
+```{r}
+
+sim_season <- function(
+  yesterday_df, season_df, mean_lookback = 'mean_21', sd_lookback = 'sd_21'
+) {
+  #means and sds
+  hpk_means <- yesterday_df[, c('stat_id', 'date', 'team_key', 'stat_name', 'hit_pitch', mean_lookback)]
+  hpk_sds <- yesterday_df[, c('stat_id', 'date', 'team_key', 'stat_name', 'hit_pitch', sd_lookback)]
+  
+  #standings
+  hpk_standings <- all_table_stats(season_df)
+  
+  
+  
+}
+
+sim_season(hpk_yest, hpk_clean)
+yesterday_df <- hpk_yest
+season_df <- hpk_clean
+mean_lookback <- 'mean_21'
+sd_lookback <- 'sd_21'
+
+```
+
+```{r season_min}
+
+ggplot(
+  data = hpk_hist %>% dplyr::filter(stat_name == 'AB'),
+  aes(
+    x = day_of_season,
+    y = mean_21,
+    group = team_key,
+    color = manager
+  )
+) +
+geom_line(
+  alpha = 0.2,
+  size = 0.5,
+  color = 'gray80'
+) +
+theme_bw() +
+theme(
+  panel.grid = element_blank(),
+  legend.position = "bottom"
+) +
+stat_smooth(se = FALSE, size = 1, n = 20) +
+scale_color_brewer(palette = "Spectral") +
+scale_x_continuous(
+  limits = c(50, 190)
+) +
+scale_y_continuous(
+  limits = c(9, 22)
+)
+
+
+```
+
+
+# errata
+verifying omar's runs
+```{r}
+hpk_clean %>%
+  dplyr::filter(team_key == '346.l.49099.t.5' & stat_name == 'SB') %>%
+  dplyr::group_by(team_key, stat_name) %>%
+  dplyr::mutate(
+    cumsum = cumsum(value)
+  ) %>%
+  dplyr::select(
+    date, cumsum
+  ) %>%
+  as.data.frame()
+
+```
