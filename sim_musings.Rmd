@@ -12,41 +12,19 @@ source('cur_hpk_prep.R')
 library(DT)
 ```
 
-```{r try_it, eval = FALSE}
-
-h_table_rank(hpk_week) %>% as.data.frame()
-h_table_rank(hpk_month) %>% as.data.frame()
-
-h_table_stats(hpk_week) %>% as.data.frame()
-h_table_stats(hpk_month) %>% as.data.frame()
-
-p_table_rank(hpk_week) %>% as.data.frame()
-p_table_rank(hpk_month) %>% as.data.frame()
-
-p_table_stats(hpk_week) %>% as.data.frame()
-p_table_stats(hpk_month) %>% as.data.frame()
-
-all_table_stats(hpk_month) %>% as.data.frame()
-all_table_rank(hpk_month) %>% as.data.frame()
-
-```
-
 
 #vs hist dist
 ok!  now that we have rolling data, compare to historic dist
 
-
 for each owner/stat, how do they compare?
-
-
 
 per stat, compare to previous distributions
 
-```{r}
+```{r hit_dist}
 ggplot(
-  data = hpk_hist %>% dplyr::filter(hit_pitch == 'hit' & scoring == TRUE),
+  data = hpk_hist %>% dplyr::filter(hit_pitch == 'hit'),
   aes(
-    x = roll_7
+    x = mean_7
   )
 ) +
 stat_density() +
@@ -58,9 +36,10 @@ facet_grid(
 ```
 
 compare mean_14, mean_21, etc
-```{r}
+```{r what_mean}
 
-ggplot(  data = hpk_hist %>% dplyr::filter(stat_name == 'TB')) +
+ggplot(  
+  data = hpk_hist %>% dplyr::filter(stat_name == 'TB')) +
   geom_density(
     aes(x = mean_7)
   ) +
@@ -83,6 +62,7 @@ ggplot(  data = hpk_hist %>% dplyr::filter(stat_name == 'TB')) +
 ok we're going to roll with mean21
 
 # sim
+assume 181 calendar days of baseball
 
 ```{r}
 
@@ -95,8 +75,23 @@ sim_season <- function(
   
   #standings
   hpk_standings <- all_table_stats(season_df)
+
+  days_remain <- 181 - n_days
   
+  #get the hist with this many remaining
+  hist_comps <- hpk_hist %>%
+    dplyr::filter(days_till_end < get('days_remain'))
   
+  comp_baseline <- hpk_hist %>%
+    dplyr::filter(days_till_end == get('days_remain'))
+  names(comp_baseline)[names(comp_baseline) == mean_lookback] <- 'mean_baseline'
+  names(comp_baseline)[names(comp_baseline) == sd_lookback] <- 'sd_baseline'
+  
+  hist_comps %>%
+    dplyr::left_join(
+      comp_baseline[, c('team_key', 'stat_name', mean_lookback, sd_lookback)],
+      by = c('team_key', 'stat_name')
+    )
   
 }
 
@@ -155,5 +150,34 @@ hpk_clean %>%
     date, cumsum
   ) %>%
   as.data.frame()
+
+```
+
+
+
+
+
+
+
+
+
+# testing 
+
+```{r try_it, eval = FALSE}
+
+h_table_rank(hpk_week) %>% as.data.frame()
+h_table_rank(hpk_month) %>% as.data.frame()
+
+h_table_stats(hpk_week) %>% as.data.frame()
+h_table_stats(hpk_month) %>% as.data.frame()
+
+p_table_rank(hpk_week) %>% as.data.frame()
+p_table_rank(hpk_month) %>% as.data.frame()
+
+p_table_stats(hpk_week) %>% as.data.frame()
+p_table_stats(hpk_month) %>% as.data.frame()
+
+all_table_stats(hpk_month) %>% as.data.frame()
+all_table_rank(hpk_month) %>% as.data.frame()
 
 ```
