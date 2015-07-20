@@ -1,1 +1,0 @@
-knit2html("auto_email.Rmd")
