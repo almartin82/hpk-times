@@ -7,7 +7,7 @@
 # Update this line with the R packages to install:
 
 # install older version of colorspace package
-my_packages = c("readr", "dplyr", "zoo", "ggplot2", "tidyr", "DT")
+my_packages = c("readr", "dplyr", "zoo", "ggplot2", "tidyr", "DT", "httr", "XML", "devtools")
 
 ###########################################################
 

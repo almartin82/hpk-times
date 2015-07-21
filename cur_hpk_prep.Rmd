@@ -12,6 +12,7 @@ library(dplyr)
 library(zoo)
 library(ggplot2)
 library(tidyr)
+library(magrittr)
 
 knitr::opts_chunk$set(cache = FALSE)
 ```
@@ -97,10 +98,10 @@ stat_metadata <- function(df) {
   
   meta_df <- data.frame(
     stat_name = c(
-      "OBP", "R", "RBI", "SB", "TB", "AVG",
+      "OBP", "R", "RBI", "SB", "TB", "AVG", "AB", "H",
       "ERA", "WHIP", "W", "SV", "K", 
       "IP", "Runs Allowed", "WH Allowed"),
-    hit_pitch = c(rep("hit", 6), rep("pitch", 8))
+    hit_pitch = c(rep("hit", 8), rep("pitch", 8))
   )
   
   df %>% dplyr::left_join(
@@ -262,7 +263,8 @@ hpk_clean <- hpk_cur %>%
   clean_values %>%
   stat_metadata %>%
   clean_obp %>%
-  clean_rows
+  clean_rows %>%
+  tbl_df()
 
 year_min <- hpk_clean %>%
   dplyr::mutate(

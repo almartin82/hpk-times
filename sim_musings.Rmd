@@ -39,7 +39,7 @@ compare mean_14, mean_21, etc
 ```{r what_mean}
 
 ggplot(  
-  data = hpk_hist %>% dplyr::filter(stat_name == 'TB')) +
+  data = hpk_hist %>% dplyr::filter(stat_name == 'RBI')) +
   geom_density(
     aes(x = mean_7)
   ) +
@@ -78,20 +78,43 @@ sim_season <- function(
 
   days_remain <- 181 - n_days
   
-  #get the hist with this many remaining
+  #get the full hist with this many remaining
   hist_comps <- hpk_hist %>%
     dplyr::filter(days_till_end < get('days_remain'))
   
+  #get the stat values on *that day* (remaining) so we can watch the random
+  #walk of the values.  eg the baseline
   comp_baseline <- hpk_hist %>%
     dplyr::filter(days_till_end == get('days_remain'))
   names(comp_baseline)[names(comp_baseline) == mean_lookback] <- 'mean_baseline'
   names(comp_baseline)[names(comp_baseline) == sd_lookback] <- 'sd_baseline'
   
-  hist_comps %>%
+  hist_comps <- hist_comps %>%
     dplyr::left_join(
-      comp_baseline[, c('team_key', 'stat_name', mean_lookback, sd_lookback)],
+      comp_baseline %>% 
+        dplyr::select(team_key, stat_name, mean_baseline, sd_baseline),
       by = c('team_key', 'stat_name')
     )
+  
+  #difference
+  hist_comps$mean_delta <- hist_comps$mean_21 - hist_comps$mean_baseline
+  hist_comps$sd_delta <- hist_comps$sd_21 - hist_comps$sd_baseline
+
+  n_walks <- 1000
+  #iterate over the current stats
+  for (i in 1:nrow(yesterday_df)) {
+    this_row <- yesterday_df[i, ]
+    this_stat <- hist_comps[hist_comps$stat_name == this_row$stat_name, ]
+    
+    #sample n times
+    stat_samples <- this_stat %>%
+      dplyr::group_by(team_key) %>%
+      dplyr::sample_n(size = n_walks)
+    
+    stat_samples$sim_mean_walk <- stat_samples$mean_delta + this_row$mean_21
+    stat_samples$sim_sd_walk <- stat_samples$sd_delta + this_row$sd_21
+    
+  }
   
 }
 
@@ -100,6 +123,24 @@ yesterday_df <- hpk_yest
 season_df <- hpk_clean
 mean_lookback <- 'mean_21'
 sd_lookback <- 'sd_21'
+
+#plot it, so we can see
+ggplot(
+  data = hist_comps,
+  aes(
+    x = days_till_end,
+    y = mean_delta,
+    group = team_key,
+    color = manager
+  )
+) + 
+geom_line(
+  alpha = 0.5
+) +
+theme_bw() +
+facet_grid(
+  hit_pitch ~ stat_name
+)
 
 ```
 

@@ -14,3 +14,6 @@ vignettes/*.pdf
 .Rproj.user
 
 *.Rproj
+
+#saved working RData file
+.RData
