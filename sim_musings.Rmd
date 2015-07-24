@@ -100,22 +100,45 @@ sim_season <- function(
   hist_comps$mean_delta <- hist_comps$mean_21 - hist_comps$mean_baseline
   hist_comps$sd_delta <- hist_comps$sd_21 - hist_comps$sd_baseline
 
-  n_walks <- 1000
+  n_walks <- 10
+  
+  #only the scoring stats
+  yesterday_iterable <- yesterday_df %>% dplyr::filter(
+    stat_name %in% c('R', 'RBI', 'SB', 'TB', 'W', 'SV', 'K')
+  )
+  
   #iterate over the current stats
-  for (i in 1:nrow(yesterday_df)) {
-    this_row <- yesterday_df[i, ]
+  for (i in 1:nrow(yesterday_iterable)) {
+    this_row <- yesterday_iterable[i, ]
     this_stat <- hist_comps[hist_comps$stat_name == this_row$stat_name, ]
     
     #sample n times
-    stat_samples <- this_stat %>%
-      dplyr::group_by(team_key) %>%
-      dplyr::sample_n(size = n_walks)
+    unq_teams <- this_stat$team_key %>% unique()
+    sampled_teams <- sample(unq_teams, n_walks, replace = TRUE)
+    sampled_teams <- data.frame(
+      team_key = sampled_teams,
+      sim_number = c(1:n_walks),
+      stringsAsFactors = FALSE
+    )
     
-    stat_samples$sim_mean_walk <- stat_samples$mean_delta + this_row$mean_21
-    stat_samples$sim_sd_walk <- stat_samples$sd_delta + this_row$sd_21
+    #get the mean walks for each team
+    sim_walks <- sampled_teams %>%
+      dplyr::inner_join(this_stat, by = 'team_key') %>%
+      tbl_df()
     
+    sim_walks$sim_mean_walk <- sim_walks$mean_delta + this_row$mean_21
+    sim_walks$sim_sd_walk <- sim_walks$sd_delta + this_row$sd_21
+    
+    #for each sim, draw from the mean walk
+    for (i in 1:n_walks) {
+      this_walk <- sim_walks %>% dplyr::filter(sim_number == i)q
+    #end n_walks loop
+    }
+    
+  #end iterable stats
   }
-  
+
+#end sim_season function  
 }
 
 sim_season(hpk_yest, hpk_clean)
@@ -198,8 +221,70 @@ hpk_clean %>%
 
 
 
+```{r poisson}
+library(fitdistrplus)
+
+hpk_hist %>% dplyr::filter(stat_name == 'R') %>%
+  dplyr::select(value) %>% ggplot(aes(x = value)) + geom_histogram()
+
+& team_key == '328.l.69518.t.11'
+stat_data <- hpk_hist %>% dplyr::filter(stat_name == 'TB' ) %>% dplyr::select(value) %>% unlist() %>% unname()
+  
+stat_fit <- fitdist(
+  data = stat_data,
+  distr = 'nbinom',
+  method = "mle"
+)
+summary(stat_fit)
+plot(stat_fit)
+
+sim <- rnbinom(
+  n = length(stat_data), 
+  size = stat_fit$estimate[1],
+  mu = stat_fit$estimate[2]
+)
+
+check_fit <- data.frame(
+  stat = c(stat_data, sim),
+  origin = c(rep('observed', length(stat_data)), rep('simulated', length(sim))),
+  stringsAsFactors = FALSE
+)
+
+ggplot(
+  data = check_fit,
+  aes(
+    x = stat,
+    group = origin,
+    color = origin
+  )
+) +
+geom_density(
+  adjust = 2
+) +
+theme_bw()
+
+```
 
 
+reasonable start values
+```{r}
+
+for (i in c('R', 'RBI', 'SB', 'TB', 'OB', 'PA', 'W', 
+                  'SV', 'K', 'Runs Allowed', 'WH Allowed', 'H', 'AB')) {
+  
+  print(i)
+  stat_data <- hpk_hist %>% dplyr::filter(stat_name == i) %>% 
+    dplyr::select(value) %>% unlist() %>% unname()
+  
+  stat_fit <- fitdist(
+    data = stat_data,
+    distr = 'nbinom',
+    method = "mle"
+  )
+  print(summary(stat_fit))
+
+}
+```
 
 
 # testing 
