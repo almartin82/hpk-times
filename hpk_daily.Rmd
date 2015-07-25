@@ -86,7 +86,7 @@ hpk_7days_ago <-  hpk_clean %>% dplyr::filter(
   date < yesterday & date < season_days[n_days-6] 
 )
 ranks_7days_ago <- all_table_rank(hpk_7days_ago) %>% dplyr::arrange(owner) %>% as.data.frame()
-change_7 <- cbind(ranks_yest[, c(1, 15)], ranks_yest[, 2:14] - ranks_7days_ago[, 2:14]) %>% dplyr::arrange(points)
+change_7 <- cbind(ranks_yest[, c(1, 15)], ranks_yest[, 2:14] - ranks_7days_ago[, 2:14]) %>% dplyr::arrange(-points)
 
 DT::datatable(
   change_7, 
@@ -104,7 +104,7 @@ hpk_30days_ago <-  hpk_clean %>% dplyr::filter(
   date < yesterday & date < season_days[n_days-29] 
 )
 ranks_30days_ago <- all_table_rank(hpk_30days_ago) %>% dplyr::arrange(owner) %>% as.data.frame()
-change_30 <- cbind(ranks_yest[, c(1, 15)], ranks_yest[, 2:14] - ranks_30days_ago[, 2:14]) %>% dplyr::arrange(points)
+change_30 <- cbind(ranks_yest[, c(1, 15)], ranks_yest[, 2:14] - ranks_30days_ago[, 2:14]) %>% dplyr::arrange(-points)
 
 DT::datatable(
   change_30, 
