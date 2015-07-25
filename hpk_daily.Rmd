@@ -21,7 +21,7 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.device
 ## _day `r n_days` of the season_
 
 # Yesterday
-
+to come
 
 # Previous 7 days
 
@@ -76,6 +76,43 @@ DT::datatable(
 )
 
 ```
+
+# Points Change, previous 7 days
+
+```{r points_change7}
+
+ranks_yest <- all_table_rank(hpk_clean) %>% dplyr::arrange(owner) %>% as.data.frame()
+hpk_7days_ago <-  hpk_clean %>% dplyr::filter(
+  date < yesterday & date < season_days[n_days-6] 
+)
+ranks_7days_ago <- all_table_rank(hpk_7days_ago) %>% dplyr::arrange(owner) %>% as.data.frame()
+change_7 <- cbind(ranks_yest[, c(1, 15)], ranks_yest[, 2:14] - ranks_7days_ago[, 2:14]) %>% dplyr::arrange(points)
+
+DT::datatable(
+  change_7, 
+  options = list(pageLength = 12, dom = 'tip')
+)
+
+```
+
+# Points Change, previous 30 days
+
+```{r points_change30}
+
+ranks_yest <- all_table_rank(hpk_clean) %>% dplyr::arrange(owner) %>% as.data.frame()
+hpk_30days_ago <-  hpk_clean %>% dplyr::filter(
+  date < yesterday & date < season_days[n_days-29] 
+)
+ranks_30days_ago <- all_table_rank(hpk_30days_ago) %>% dplyr::arrange(owner) %>% as.data.frame()
+change_30 <- cbind(ranks_yest[, c(1, 15)], ranks_yest[, 2:14] - ranks_30days_ago[, 2:14]) %>% dplyr::arrange(points)
+
+DT::datatable(
+  change_30, 
+  options = list(pageLength = 12, dom = 'tip')
+)
+
+```
+
 
 # Best hitting (whole season)
 

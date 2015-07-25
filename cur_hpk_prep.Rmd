@@ -740,7 +740,6 @@ ranks_df <- data.frame(
 )
 
 for (i in hpk_clean$date %>% unique() %>% sort()) {
-  print(i)
   through_today <- hpk_clean %>% dplyr::filter(date <= i)
   today_ranks <- all_table_rank(through_today)
   
