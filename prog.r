@@ -1,19 +1,13 @@
-#
-# Example R program
-#
+library(knitr)
+knitr::knit('hpk_daily.Rmd')
 
-# example from http://www.cookbook-r.com/Graphs/Bar_and_line_graphs_(ggplot2)/
+library(aws.signature)
+library(aws.s3)
 
-library(ggplot2)
+aws.s3::putobject(
+  file = 'hpk_daily.html',
+  bucket = 'hpk', 
+  object = paste0('hpk_daily_', gsub('[-:]', '_', Sys.Date()), '.html'),
+  parse_response = FALSE
+)
 
-dataframe <- data.frame(time=factor(c("Lunch", "Dinner"), levels = c("Lunch", "Dinner")), total_bill = c(14.89, 17.23))
-
-plot = ggplot(data=dataframe, aes(x=time, y=total_bill)) + geom_bar(stat="identity")
-
-filename_pdf <- tempfile(fileext='.pdf')
-ggsave(filename=filename_pdf, height=5, width=15, plot)
-
-filename_png <- tempfile(fileext='.png')
-ggsave(filename=filename_png, height=5, width=15, type="cairo", plot)
-
-# TODO: store output file somewhere persistent. E.g. S3
