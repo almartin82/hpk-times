@@ -20,3 +20,6 @@ install_if_missing = function(p) {
   }
 }
 invisible(sapply(my_packages, install_if_missing))
+# github packages
+devtools::install_github('cloudyr/aws.signature')
+devtools::install_github('cloudyr/aws.s3')
