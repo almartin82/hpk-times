@@ -13,6 +13,7 @@ library(zoo)
 library(ggplot2)
 library(tidyr)
 library(magrittr)
+library(fitdistrplus)
 
 knitr::opts_chunk$set(cache = FALSE)
 ```
@@ -324,28 +325,28 @@ make_rolling <- function(df, n = c(2:60)) {
         foo_mean = rollmeanr(x = value, k = quote(i), na.pad = TRUE) %>% round(3),
         foo_sd = rollapply(
           data = value, width = quote(i), align = 'right', fill = NA, FUN = sd
-        ) %>% round(3),
-        foo_nbinom_size = rollapply(
-          data = value, width = quote(i), align = 'right', fill = NA, 
-          FUN = nbinom_wrapper, stat = stat_name, est = 1
-        ),
-        foo_nbinom_mu = rollapply(
-          data = value, width = quote(i), align = 'right', fill = NA, 
-          FUN = nbinom_wrapper, stat = stat_name, est = 2
-        )        
+        ) %>% round(3)
+#         foo_nbinom_size = rollapply(
+#           data = value, width = quote(i), align = 'right', fill = NA, 
+#           FUN = nbinom_wrapper, stat = stat_name, est = 1
+#         ),
+#         foo_nbinom_mu = rollapply(
+#           data = value, width = quote(i), align = 'right', fill = NA, 
+#           FUN = nbinom_wrapper, stat = stat_name, est = 2
+#         )        
       )
     names(df)[names(df) == 'foo_mean'] <- paste0('mean_', i)
     names(df)[names(df) == 'foo_sd'] <- paste0('sd_', i)
-    names(df)[names(df) == 'foo_nbinom_size'] <- paste0('nbinom_size_', i)
-    names(df)[names(df) == 'foo_nbinom_mu'] <- paste0('nbinom_mu_', i)  
+#     names(df)[names(df) == 'foo_nbinom_size'] <- paste0('nbinom_size_', i)
+#     names(df)[names(df) == 'foo_nbinom_mu'] <- paste0('nbinom_mu_', i)  
   }
   
   return(df)
 }
 
-foo <- make_rolling(hpk_clean, n=c(21, 28)) %>% tbl_df
 
-foo[foo$stat_name == 'R' & foo$day_of_season > 80, ] %>% head() %>% as.data.frame()
+#foo <- make_rolling(hpk_clean, n=c(21, 28)) %>% tbl_df
+#foo[foo$stat_name == 'R' & foo$day_of_season > 80, ] %>% head() %>% as.data.frame()
 
 ```
 

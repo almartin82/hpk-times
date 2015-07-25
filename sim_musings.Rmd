@@ -227,8 +227,9 @@ library(fitdistrplus)
 hpk_hist %>% dplyr::filter(stat_name == 'R') %>%
   dplyr::select(value) %>% ggplot(aes(x = value)) + geom_histogram()
 
-& team_key == '328.l.69518.t.11'
-stat_data <- hpk_hist %>% dplyr::filter(stat_name == 'TB' ) %>% dplyr::select(value) %>% unlist() %>% unname()
+#& team_key == '328.l.69518.t.11'
+
+stat_data <- hpk_hist %>% dplyr::filter(stat_name == 'AB' ) %>% dplyr::select(value) %>% unlist() %>% unname()
   
 stat_fit <- fitdist(
   data = stat_data,
@@ -238,11 +239,17 @@ stat_fit <- fitdist(
 summary(stat_fit)
 plot(stat_fit)
 
-sim <- rnbinom(
-  n = length(stat_data), 
-  size = stat_fit$estimate[1],
-  mu = stat_fit$estimate[2]
-)
+# sim <- rcauchy(
+#   n = length(stat_data),
+#   location = stat_fit$estimate[1],
+#   scale = stat_fit$estimate[2]
+# )
+
+# sim <- rnbinom(
+#   n = length(stat_data), 
+#   size = stat_fit$estimate[1],
+#   mu = stat_fit$estimate[2]
+# )
 
 check_fit <- data.frame(
   stat = c(stat_data, sim),
@@ -267,7 +274,9 @@ theme_bw()
 
 
 reasonable start values
-```{r}
+```{r nbinom_start}
+
+start_list <- list()
 
 for (i in c('R', 'RBI', 'SB', 'TB', 'OB', 'PA', 'W', 
                   'SV', 'K', 'Runs Allowed', 'WH Allowed', 'H', 'AB')) {
@@ -276,14 +285,24 @@ for (i in c('R', 'RBI', 'SB', 'TB', 'OB', 'PA', 'W',
   stat_data <- hpk_hist %>% dplyr::filter(stat_name == i) %>% 
     dplyr::select(value) %>% unlist() %>% unname()
   
-  stat_fit <- fitdist(
-    data = stat_data,
-    distr = 'nbinom',
-    method = "mle"
-  )
+  if (i %in% c('W', 'SV')) {
+    stat_fit <- fitdist(
+      data = stat_data,
+      distr = 'pois',
+      method = "mle"
+    )
+  } else {
+    stat_fit <- fitdist(
+      data = stat_data,
+      distr = 'nbinom',
+      method = "mle"
+    )
+  }
+  start_list[[i]] <- stat_fit$estimate
   print(summary(stat_fit))
-
 }
+
+
 ```
 
 

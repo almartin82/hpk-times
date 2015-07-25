@@ -4,6 +4,8 @@ library(dplyr)
 library(zoo)
 library(ggplot2)
 library(tidyr)
+library(magrittr)
+library(fitdistrplus)
 
 knitr::opts_chunk$set(cache = FALSE)
 
@@ -83,10 +85,10 @@ stat_metadata <- function(df) {
   
   meta_df <- data.frame(
     stat_name = c(
-      "OBP", "R", "RBI", "SB", "TB", "AVG",
+      "OBP", "R", "RBI", "SB", "TB", "AVG", "AB", "H",
       "ERA", "WHIP", "W", "SV", "K", 
       "IP", "Runs Allowed", "WH Allowed"),
-    hit_pitch = c(rep("hit", 6), rep("pitch", 8))
+    hit_pitch = c(rep("hit", 8), rep("pitch", 8))
   )
   
   df %>% dplyr::left_join(
@@ -245,7 +247,8 @@ hpk_clean <- hpk_cur %>%
   clean_values %>%
   stat_metadata %>%
   clean_obp %>%
-  clean_rows
+  clean_rows %>%
+  tbl_df()
 
 year_min <- hpk_clean %>%
   dplyr::mutate(
@@ -273,25 +276,57 @@ hpk_clean <- hpk_clean %>%
 
 ## ----helper_function-----------------------------------------------------
 
+nbinom_wrapper <- function(x, stat, est = 1) {
+  if (unique(stat) %in% c('R', 'RBI', 'SB', 'TB', 'OB', 'PA', 'W', 
+                  'SV', 'K', 'Runs Allowed', 'WH Allowed', 'H', 'AB')
+  ) {
+    out <- fitdist(
+      data = x,
+      distr = 'nbinom',
+      method = "mme"
+    )
+    out <- out$estimate[est] %>% unname() %>% as.numeric()
+  } else {
+    out <- -1
+  }
+  out
+}
+
 make_rolling <- function(df, n = c(2:60)) {
   
   df <- df %>%
-    dplyr::group_by(stat_id, team_key) %>%
-    dplyr::arrange(team_key, stat_id, date)
+    dplyr::group_by(stat_id, team_key, stat_name) %>%
+    dplyr::arrange(team_key, stat_name, date)
   
   for (i in n) {
     print(i)
     df <- df %>%
       dplyr::mutate(
         foo_mean = rollmeanr(x = value, k = quote(i), na.pad = TRUE) %>% round(3),
-        foo_sd = rollapply(data = value, width = quote(i), FUN = sd, align = 'right', fill = NA) %>% round(3)
+        foo_sd = rollapply(
+          data = value, width = quote(i), align = 'right', fill = NA, FUN = sd
+        ) %>% round(3)
+#         foo_nbinom_size = rollapply(
+#           data = value, width = quote(i), align = 'right', fill = NA, 
+#           FUN = nbinom_wrapper, stat = stat_name, est = 1
+#         ),
+#         foo_nbinom_mu = rollapply(
+#           data = value, width = quote(i), align = 'right', fill = NA, 
+#           FUN = nbinom_wrapper, stat = stat_name, est = 2
+#         )        
       )
     names(df)[names(df) == 'foo_mean'] <- paste0('mean_', i)
     names(df)[names(df) == 'foo_sd'] <- paste0('sd_', i)
+#     names(df)[names(df) == 'foo_nbinom_size'] <- paste0('nbinom_size_', i)
+#     names(df)[names(df) == 'foo_nbinom_mu'] <- paste0('nbinom_mu_', i)  
   }
   
   return(df)
 }
+
+
+#foo <- make_rolling(hpk_clean, n=c(21, 28)) %>% tbl_df
+#foo[foo$stat_name == 'R' & foo$day_of_season > 80, ] %>% head() %>% as.data.frame()
 
 
 ## ----cur_roll------------------------------------------------------------
