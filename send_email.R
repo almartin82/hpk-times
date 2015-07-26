@@ -8,7 +8,7 @@ RMandrill::mandrill_send_template(
   api_key = Sys.getenv("MANDRILL_KEY"),
   template_name = 'hpk-times',
 #  recipient = 'almartin@gmail.com',
-#   recipient = data.frame(
+#  recipient = data.frame(
 #      email = c('almartin@gmail.com', 'czapmike@gmail.com'),
 #      name = c('alm', 'czap'),
 #      type = c('cc', 'cc'),
