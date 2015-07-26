@@ -24,4 +24,4 @@ invisible(sapply(my_packages, install_if_missing))
 # github packages
 devtools::install_github('cloudyr/aws.signature')
 devtools::install_github('cloudyr/aws.s3')
-devtools::install_github("almartin82/RMandrill")
+devtools::install_github("almartin82/RMandrill", ref='almartin')
