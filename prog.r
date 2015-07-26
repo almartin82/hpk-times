@@ -13,3 +13,5 @@ aws.s3::putobject(
   object = rmd_filename,
   parse_response = FALSE
 )
+
+if (file.exists('hpk_daily.html')) file.remove('hpk_daily.html')
