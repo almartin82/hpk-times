@@ -24,7 +24,8 @@ invisible(sapply(my_packages, install_if_missing))
 # github packages
 devtools::install_github('cloudyr/aws.signature')
 devtools::install_github('cloudyr/aws.s3')
-devtools::install_github("almartin82/RMandrill", ref='almartin')
+devtools::install_github("almartin82/RMandrill", ref = 'almartin')
+devtools::install_github('talgalili/installr')
  
 # pandoc is not on cran
 installr::install.pandoc()
