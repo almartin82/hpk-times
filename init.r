@@ -8,7 +8,7 @@
 
 # install older version of colorspace package
 my_packages = c("readr", "dplyr", "zoo", "ggplot2", "tidyr", "DT", "httr", "XML", 
-                "devtools", "fitdistrplus", 'knitr', 'rmarkdown', 'installr')
+                "devtools", "fitdistrplus", 'knitr', 'rmarkdown')
 
 ###########################################################
 
@@ -25,7 +25,3 @@ invisible(sapply(my_packages, install_if_missing))
 devtools::install_github('cloudyr/aws.signature')
 devtools::install_github('cloudyr/aws.s3')
 devtools::install_github("almartin82/RMandrill", ref = 'almartin')
-devtools::install_github('talgalili/installr')
- 
-# pandoc is not on cran
-installr::install.pandoc()

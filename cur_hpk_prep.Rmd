@@ -354,7 +354,8 @@ now do it for current data
 
 ```{r cur_roll}
 
-hpk_clean <- make_rolling(hpk_clean)
+#hpk_clean <- make_rolling(hpk_clean)
+hpk_clean <- make_rolling(hpk_clean, n = c(7, 14, 21, 28))
 
 ```
 

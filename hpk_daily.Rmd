@@ -9,6 +9,7 @@ output: html_document
 knitr::knit('cur_hpk_prep.Rmd', tangle = TRUE)
 source('cur_hpk_prep.R')
 library(DT)
+library(htmltools)
 ```
 
 

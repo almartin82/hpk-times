@@ -1,6 +1,6 @@
 require(knitr)
 require(rmarkdown)
-rmarkdown::render("hpk_daily.Rmd")
+rmarkdown::render('hpk_daily.Rmd')
 
 rmd_filename = paste0('hpk_daily_', gsub('[-:]', '_', Sys.Date()), '.html')
 
