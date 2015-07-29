@@ -1,13 +1,13 @@
 ## ----lib-----------------------------------------------------------------
-suppressPackageStartupMessages(suppressWarnings(library(readr)))
-suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
-suppressPackageStartupMessages(suppressWarnings(library(zoo)))
-suppressPackageStartupMessages(suppressWarnings(library(tidyr)))
-suppressPackageStartupMessages(suppressWarnings(library(magrittr)))
-suppressPackageStartupMessages(suppressWarnings(library(fitdistrplus)))
-suppressPackageStartupMessages(suppressWarnings(library(knitr)))
+#suppressPackageStartupMessages(suppressWarnings(library(readr)))
+#suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
+#suppressPackageStartupMessages(suppressWarnings(library(zoo)))
+#suppressPackageStartupMessages(suppressWarnings(library(tidyr)))
+#suppressPackageStartupMessages(suppressWarnings(library(magrittr)))
+#suppressPackageStartupMessages(suppressWarnings(library(fitdistrplus)))
+#suppressPackageStartupMessages(suppressWarnings(library(knitr)))
 
-knitr::opts_chunk$set(cache = FALSE)
+#knitr::opts_chunk$set(cache = FALSE)
 
 ## ----csv-----------------------------------------------------------------
 

@@ -7,13 +7,13 @@ output: html_document
 
 libraries etc
 ```{r lib}
-suppressPackageStartupMessages(suppressWarnings(library(readr)))
-suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
-suppressPackageStartupMessages(suppressWarnings(library(zoo)))
-suppressPackageStartupMessages(suppressWarnings(library(tidyr)))
-suppressPackageStartupMessages(suppressWarnings(library(magrittr)))
-suppressPackageStartupMessages(suppressWarnings(library(fitdistrplus)))
-suppressPackageStartupMessages(suppressWarnings(library(knitr)))
+#supressPackageStartupMessages(suppressWarnings(library(readr)))
+#suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
+#suppressPackageStartupMessages(suppressWarnings(library(zoo)))
+#suppressPackageStartupMessages(suppressWarnings(library(tidyr)))
+#suppressPackageStartupMessages(suppressWarnings(library(magrittr)))
+#suppressPackageStartupMessages(suppressWarnings(library(fitdistrplus)))
+#suppressPackageStartupMessages(suppressWarnings(library(knitr)))
 
 knitr::opts_chunk$set(cache = FALSE)
 ```

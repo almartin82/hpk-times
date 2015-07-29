@@ -6,8 +6,8 @@ output: html_document
 ---
 
 ```{r helpers, message=FALSE, error=FALSE, warning=FALSE, include=FALSE}
-require(knitr)
-knitr::knit('cur_hpk_prep.Rmd', tangle = TRUE)
+#require(knitr)
+#knitr::knit('cur_hpk_prep.Rmd', tangle = TRUE)
 source('cur_hpk_prep.R')
 ```
 
@@ -19,7 +19,7 @@ suppressPackageStartupMessages(suppressWarnings(library(htmltools)))
 
 ```{r global_options, include=FALSE}
 
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.device = 'svg', cache = FALSE)
+#knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.device = 'svg', cache = FALSE)
 
 ```
 
