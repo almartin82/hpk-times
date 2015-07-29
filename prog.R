@@ -1,7 +1,7 @@
 suppressPackageStartupMessages(suppressWarnings(library(knitr)))
 suppressPackageStartupMessages(suppressWarnings(library(rmarkdown)))
 suppressPackageStartupMessages(suppressWarnings(library(httr)))
-
+Sys.setenv("DISPLAY" = ":0.0")
 rmarkdown::render('hpk_daily.Rmd')
 
 rmd_filename = paste0('hpk_daily_', gsub('[-:]', '_', Sys.Date()), '.html')
