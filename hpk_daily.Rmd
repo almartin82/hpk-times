@@ -6,6 +6,7 @@ output: html_document
 ---
 
 ```{r helpers, message=FALSE, error=FALSE, warning=FALSE, include=FALSE}
+require(knitr)
 knitr::knit('cur_hpk_prep.Rmd', tangle = TRUE)
 source('cur_hpk_prep.R')
 library(DT)
