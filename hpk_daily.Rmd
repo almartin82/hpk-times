@@ -9,8 +9,11 @@ output: html_document
 require(knitr)
 knitr::knit('cur_hpk_prep.Rmd', tangle = TRUE)
 source('cur_hpk_prep.R')
-library(DT)
-library(htmltools)
+```
+
+```{r libraries}
+suppressPackageStartupMessages(suppressWarnings(library(DT)))
+suppressPackageStartupMessages(suppressWarnings(library(htmltools)))
 ```
 
 

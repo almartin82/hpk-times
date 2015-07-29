@@ -7,14 +7,14 @@ output: html_document
 
 libraries etc
 ```{r lib}
-library(readr)
-library(dplyr)
-library(zoo)
-library(ggplot2)
-library(tidyr)
-library(magrittr)
-library(fitdistrplus)
-library(knitr)
+suppressPackageStartupMessages(suppressWarnings(library(readr)))
+suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
+suppressPackageStartupMessages(suppressWarnings(library(zoo)))
+suppressPackageStartupMessages(suppressWarnings(library(ggplot2)))
+suppressPackageStartupMessages(suppressWarnings(library(tidyr)))
+suppressPackageStartupMessages(suppressWarnings(library(magrittr)))
+suppressPackageStartupMessages(suppressWarnings(library(fitdistrplus)))
+suppressPackageStartupMessages(suppressWarnings(library(knitr)))
 
 knitr::opts_chunk$set(cache = FALSE)
 ```
@@ -187,7 +187,7 @@ infer_pa <- function(reported_obp, reported_h, reported_ab) {
     obp == quote(reported_obp)
   )
   
-  if(nrow(possible) == 0) {
+  if (nrow(possible) == 0) {
     print('obp pa inference problem :(')
    
     print(paste0('AB:', reported_ab))
@@ -213,15 +213,15 @@ clean_obp <- function(df) {
   
   h <- df %>% dplyr::filter(stat_name == 'H')
   h <- h[, c('value', 'team_key', 'date')]
-  names(h)[names(h)=='value'] <- 'H'
+  names(h)[names(h) == 'value'] <- 'H'
   
   ab <- df %>% dplyr::filter(stat_name == 'AB')
   ab <- ab[, c('value', 'team_key', 'date')]
   names(ab)[names(ab) == 'value'] <- 'AB'
 
   munge <- is_obp %>%
-    dplyr::left_join(h) %>%
-    dplyr::left_join(ab)
+    dplyr::left_join(h, by = c('date', 'team_key')) %>%
+    dplyr::left_join(ab, by = c('date', 'team_key'))
   
   munge$OB <- NA
   munge$PA <- NA
@@ -553,7 +553,7 @@ h_table_rank <- function(df) {
   df_total <- h_totals(df)
   
   df_points_wide %>%
-    dplyr::left_join(df_total) %>%
+    dplyr::left_join(df_total, by = c('team_key')) %>%
     dplyr::arrange(-H)  %>%
     dplyr::left_join(
       owners[ ,c('team_key', 'manager', 'name')],
@@ -594,7 +594,7 @@ p_table_rank <- function(df) {
   df_total <- p_totals(df)
   
   df_points_wide %>%
-    dplyr::left_join(df_total) %>%
+    dplyr::left_join(df_total, by = "team_key") %>%
     dplyr::arrange(-P)  %>%
     dplyr::left_join(
       owners[ ,c('team_key', 'manager', 'name')],
@@ -656,9 +656,10 @@ all_table_stats <- function(df) {
 all_table_rank <- function(df) {
   result <- h_table_rank(df) %>% 
     dplyr::left_join(
-      p_table_rank(df)
+      p_table_rank(df),
+      by = c("manager", "team_key")
     ) %>%
-    dplyr::left_join(short_names) %>%
+    dplyr::left_join(short_names, by = 'team_key') %>%
     dplyr::mutate(
       points = H + P,
       rank = rank(-points, ties.method = 'min')
@@ -742,6 +743,7 @@ ranks_df <- data.frame(
 )
 
 for (i in hpk_clean$date %>% unique() %>% sort()) {
+  print(i %>% as.Date())
   through_today <- hpk_clean %>% dplyr::filter(date <= i)
   today_ranks <- all_table_rank(through_today)
   
