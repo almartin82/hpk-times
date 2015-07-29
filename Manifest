@@ -1,0 +1,7 @@
+.bashrc : convenient aliases and tools, including environmental configuration to get emacs and vim to work right
+.buildpacks : the list of heroku buildpacks to install, probably in order
+Aptfile: the list of apt package names (or html links to deb package files) to install via heroku-buildpack-apt
+init.r : the set of r commands (and r packages) to install when heroku-buildpack-r-build runs
+test.Rmd : an example file that works
+.emacs : Emacs Candy
+.vim : Vim Vegetables
