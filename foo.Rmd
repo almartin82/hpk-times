@@ -5,7 +5,5 @@ output: html_document
 ---
 
 ```{r}
-library(ggplot2)
-head(diamonds)
-
+head(iris)
 ```
