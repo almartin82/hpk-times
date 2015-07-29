@@ -1,7 +1,7 @@
-require(knitr)
-require(rmarkdown)
-require(httr)
-Sys.putenv("DISPLAY" = ":0.0")
+suppressPackageStartupMessages(suppressWarnings(library(knitr)))
+suppressPackageStartupMessages(suppressWarnings(library(rmarkdown)))
+suppressPackageStartupMessages(suppressWarnings(library(httr)))
+
 rmarkdown::render('hpk_daily.Rmd')
 
 rmd_filename = paste0('hpk_daily_', gsub('[-:]', '_', Sys.Date()), '.html')

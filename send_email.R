@@ -1,6 +1,6 @@
 #devtools::load_all(pkg = "C:\\Users\\AMartin\\Dropbox\\repositories\\RMandrill")
 
-library(RMandrill)
+suppressPackageStartupMessages(suppressWarnings(library(RMandrill)))
 
 rmd_filename = paste0('hpk_daily_', gsub('[-:]', '_', Sys.Date()), '.html')
 
