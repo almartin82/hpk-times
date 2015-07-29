@@ -1,5 +1,6 @@
 require(knitr)
 require(rmarkdown)
+require(httr)
 rmarkdown::render('hpk_daily.Rmd')
 
 rmd_filename = paste0('hpk_daily_', gsub('[-:]', '_', Sys.Date()), '.html')
@@ -15,3 +16,5 @@ aws.s3::putobject(
 )
 
 if (file.exists('hpk_daily.html')) file.remove('hpk_daily.html')
+#check in with dead man's snitch
+httr::GET('https://nosnch.in/87d799f117')
