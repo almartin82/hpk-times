@@ -10,7 +10,6 @@ libraries etc
 suppressPackageStartupMessages(suppressWarnings(library(readr)))
 suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
 suppressPackageStartupMessages(suppressWarnings(library(zoo)))
-suppressPackageStartupMessages(suppressWarnings(library(ggplot2)))
 suppressPackageStartupMessages(suppressWarnings(library(tidyr)))
 suppressPackageStartupMessages(suppressWarnings(library(magrittr)))
 suppressPackageStartupMessages(suppressWarnings(library(fitdistrplus)))

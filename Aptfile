@@ -3,4 +3,5 @@ vim
 vim-nox
 emacs
 https://github.com/jgm/pandoc/releases/download/1.15.0.6/pandoc-1.15.0.6-1-amd64.deb
-xorg-x11-server-Xvfb
+xorg-dev
+libx11-dev
