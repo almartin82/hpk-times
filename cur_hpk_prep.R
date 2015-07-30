@@ -1,13 +1,13 @@
 ## ----lib-----------------------------------------------------------------
-#suppressPackageStartupMessages(suppressWarnings(library(readr)))
-#suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
-#suppressPackageStartupMessages(suppressWarnings(library(zoo)))
-#suppressPackageStartupMessages(suppressWarnings(library(tidyr)))
-#suppressPackageStartupMessages(suppressWarnings(library(magrittr)))
-#suppressPackageStartupMessages(suppressWarnings(library(fitdistrplus)))
-#suppressPackageStartupMessages(suppressWarnings(library(knitr)))
+suppressPackageStartupMessages(suppressWarnings(library(readr)))
+suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
+suppressPackageStartupMessages(suppressWarnings(library(zoo)))
+suppressPackageStartupMessages(suppressWarnings(library(tidyr)))
+suppressPackageStartupMessages(suppressWarnings(library(magrittr)))
+suppressPackageStartupMessages(suppressWarnings(library(fitdistrplus)))
+suppressPackageStartupMessages(suppressWarnings(library(knitr)))
 
-#knitr::opts_chunk$set(cache = FALSE)
+knitr::opts_chunk$set(cache = FALSE)
 
 ## ----csv-----------------------------------------------------------------
 
@@ -340,6 +340,7 @@ hpk_clean <- make_rolling(hpk_clean, n = c(7, 14, 21, 28))
 season_days <- hpk_clean$date %>% unique() %>% sort()
 
 n_days <- season_days %>% length()
+n_left <- (as.Date("2015-10-04") - Sys.Date()) %>% as.numeric
 
 #get the last day of stats
 yesterday <- season_days[n_days]

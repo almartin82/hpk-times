@@ -7,13 +7,13 @@ output: html_document
 
 libraries etc
 ```{r lib}
-#supressPackageStartupMessages(suppressWarnings(library(readr)))
-#suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
-#suppressPackageStartupMessages(suppressWarnings(library(zoo)))
-#suppressPackageStartupMessages(suppressWarnings(library(tidyr)))
-#suppressPackageStartupMessages(suppressWarnings(library(magrittr)))
-#suppressPackageStartupMessages(suppressWarnings(library(fitdistrplus)))
-#suppressPackageStartupMessages(suppressWarnings(library(knitr)))
+suppressPackageStartupMessages(suppressWarnings(library(readr)))
+suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
+suppressPackageStartupMessages(suppressWarnings(library(zoo)))
+suppressPackageStartupMessages(suppressWarnings(library(tidyr)))
+suppressPackageStartupMessages(suppressWarnings(library(magrittr)))
+suppressPackageStartupMessages(suppressWarnings(library(fitdistrplus)))
+suppressPackageStartupMessages(suppressWarnings(library(knitr)))
 
 knitr::opts_chunk$set(cache = FALSE)
 ```
@@ -366,6 +366,7 @@ get yesterday's data, last week's data, last month's data
 season_days <- hpk_clean$date %>% unique() %>% sort()
 
 n_days <- season_days %>% length()
+n_left <- (as.Date("2015-10-04") - Sys.Date()) %>% as.numeric
 
 #get the last day of stats
 yesterday <- season_days[n_days]
@@ -723,6 +724,156 @@ best_p <- function(df) {
       'owner', 'W', 'SV', 'K', 'ERA', 'WHIP', 'W.', 'SV.', 'K.', 'ERA.', 'WHIP.', 'P'
     )
 }
+
+```
+
+
+#make hit graphs
+
+```{r eval=FALSE}
+library(forecast)
+
+for (i in c('R', 'RBI', 'SB', 'TB')) {
+  clean_asb <- hpk_clean[hpk_clean$stat_name == 'AB' & hpk_clean$value > 0, 'day_of_season'] %>%
+    unique()
+  clean_asb$clean_day_of_season <- rank(clean_asb$day_of_season %>% as.numeric())
+  
+    
+  this_stat <- hpk_clean %>% dplyr::filter(stat_name == i)  %>%
+    dplyr::left_join(short_names) %>%
+    dplyr::left_join(clean_asb, by='day_of_season')
+  
+  this_stat <- this_stat %>%
+    dplyr::group_by(team_key) %>%
+    dplyr::arrange(stat_name, team_key, date) %>%
+    dplyr::mutate(
+      running_total = cumsum(value)
+    )
+  
+  this_stat <- this_stat %>%
+    dplyr::group_by(date, stat_name) %>%
+    dplyr::mutate(
+      leader = max(running_total),
+      diff_from_leader = leader - running_total
+    )
+  
+  unq_teams <- this_stat$team_key %>% unique()
+  
+  bb_data <- data.frame(
+    team_key = character(0),
+    stat_name = character(0),
+    slope = numeric(0),
+    intercept = numeric(0),
+    stringsAsFactors = FALSE
+  )
+  
+  for (j in unq_teams) {
+    print(j)
+    this_team <- this_stat[this_stat$team_key == j, ]
+    
+    bb_linreg <- bayes_boot(
+      this_team, 
+      function(data) {
+        lm(running_total ~ day_of_season, data)$coef
+      }, 
+      n1 = 1000
+    )
+    
+    names(bb_linreg) <- c('intercept', 'slope')
+    bb_linreg$team_key <- j
+    bb_linreg$stat_name <- i
+    bb_linreg$end_value <- bb_linreg$slope * 177 + bb_linreg$intercept
+        
+    bb_data <- rbind(bb_data, bb_linreg)
+  }
+  #add owner
+  bb_data <- bb_data %>%
+    dplyr::left_join(short_names)
+  
+  #plot it
+  p <- ggplot(
+    data = this_stat,
+    aes(
+      x = clean_day_of_season,
+      y = running_total
+    )
+  ) +
+  geom_point(
+    alpha = 0.1,
+    size = 2
+  ) +
+  theme_bw() +
+  geom_abline(
+    data = bb_data,
+    aes(
+      intercept = intercept, 
+      slope = slope, 
+      group = owner,
+      color = owner
+    )
+  ) +
+  geom_point(
+    data = bb_data,
+    aes(
+      x = 177,
+      y = end_value,
+      color = owner
+    ),
+    shape = 3
+  ) +
+  coord_cartesian(
+    xlim = c(0, 177),
+    ylim = c(0, 3000)
+  )
+  
+  p
+  
+  p +
+  facet_wrap(~owner)
+
+  
+  ggplot(
+    data = this_stat,
+    aes(
+      x = day_of_season,
+      y = diff_from_leader
+    )
+  ) + 
+  geom_line() +
+
+  ggplot() +
+  geom_abline(
+    data = bb_data,
+    aes(
+      intercept = intercept,
+      slope = slope
+    )
+  ) +
+  theme_bw() +
+  facet_wrap(~team_key)
+  
+  
+  p <- ggplot(mtcars, aes(x = wt, y=mpg), . ~ cyl) + geom_point()
+df <- data.frame(a=rnorm(10, 25), b=rnorm(10, 0))
+p + geom_abline(aes(intercept=intercept, slope=slope), data=bb_data)
+  
+  
+  
+  ggplot(
+    data = this_stat,
+    aes(
+      x = day_of_season,
+      y = diff_from_leader
+    )
+  ) + 
+  geom_line() +
+  stat_smooth() +
+  theme_bw() +
+  facet_wrap(~owner)
+  
+    
+}
+
 
 ```
 

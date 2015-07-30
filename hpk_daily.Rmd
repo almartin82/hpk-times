@@ -6,12 +6,12 @@ output: html_document
 ---
 
 ```{r helpers, message=FALSE, error=FALSE, warning=FALSE, include=FALSE}
-#require(knitr)
-#knitr::knit('cur_hpk_prep.Rmd', tangle = TRUE)
+require(knitr)
+knitr::knit('cur_hpk_prep.Rmd', tangle = TRUE)
 source('cur_hpk_prep.R')
 ```
 
-```{r libraries}
+```{r libraries, message=FALSE, error=FALSE, warning=FALSE, include=FALSE}
 suppressPackageStartupMessages(suppressWarnings(library(DT)))
 suppressPackageStartupMessages(suppressWarnings(library(htmltools)))
 ```
@@ -19,11 +19,11 @@ suppressPackageStartupMessages(suppressWarnings(library(htmltools)))
 
 ```{r global_options, include=FALSE}
 
-#knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.device = 'svg', cache = FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.device = 'svg', cache = FALSE)
 
 ```
 
-## _day `r n_days` of the season_
+## _day `r n_days` of the season.  `r n_left` days remaining._
 
 # Yesterday
 to come
@@ -161,8 +161,12 @@ DT::datatable(
 
 ```
 
-# Projections
+# Projections | Hitting
 
+```{r hit_graphs}
+
+
+```
 
 ### _to come_
 
