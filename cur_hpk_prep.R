@@ -6,6 +6,9 @@ suppressPackageStartupMessages(suppressWarnings(library(tidyr)))
 suppressPackageStartupMessages(suppressWarnings(library(magrittr)))
 suppressPackageStartupMessages(suppressWarnings(library(fitdistrplus)))
 suppressPackageStartupMessages(suppressWarnings(library(knitr)))
+library(forecast)
+library(ggplot2)
+library(ggthemes)
 
 knitr::opts_chunk$set(cache = FALSE)
 
@@ -694,6 +697,313 @@ best_p <- function(df) {
     )
 }
 
+
+## ----hit1----------------------------------------------------------------
+
+
+forecast_data <- data.frame(
+  clean_day_of_season = numeric(0),
+  point_est = numeric(0),
+  lower_80 = numeric(0),
+  upper_80 = numeric(0),
+  lower_95 = numeric(0),
+  upper_95 = numeric(0),
+  type = character(0),
+  stat_name = character(0),
+  team_key = character(0),
+  stringsAsFactors = FALSE
+)
+
+sim_data <- data.frame(
+  stat_value = numeric(0),
+  stat_name = character(0),
+  team_key = character(0),
+  sim_number = integer(0),
+  stringsAsFactors = FALSE
+)
+
+n_sim <- 10000
+
+  
+for (i in c('R', 'RBI', 'SB', 'TB')) {
+  print(i)
+  clean_asb <- hpk_clean[hpk_clean$stat_name == 'AB' & hpk_clean$value > 0, 'day_of_season'] %>% unique()
+  clean_asb$clean_day_of_season <- rank(clean_asb$day_of_season %>% as.numeric())
+    
+  this_stat <- hpk_clean %>% dplyr::filter(stat_name == i)  %>%
+    dplyr::left_join(short_names) %>%
+    dplyr::left_join(clean_asb, by = 'day_of_season')
+  
+  this_stat <- this_stat %>%
+    dplyr::group_by(team_key) %>%
+    dplyr::arrange(stat_name, team_key, date) %>%
+    dplyr::mutate(
+      running_total = cumsum(value)
+    )
+  
+  this_stat <- this_stat %>%
+    dplyr::group_by(date, stat_name) %>%
+    dplyr::mutate(
+      leader = max(running_total),
+      diff_from_leader = leader - running_total
+    )
+  
+  unq_teams <- this_stat$team_key %>% unique()
+  
+  for (j in unq_teams) {
+    print(j)
+    this_team <- this_stat[this_stat$team_key == j, ]
+    
+    #stat_bats <- forecast::tbats(y = this_team$running_total)
+    #stat_bats_forecast <- forecast(stat_bats, h = n_left)
+    
+    stat_ets <- forecast::ets(y = this_team$running_total)
+    stat_ets_forecast <- forecast::forecast(stat_ets, h = n_left + 1)
+    
+    #record the forecast path
+    this_observed <- data.frame(
+      clean_day_of_season = this_team$clean_day_of_season,
+      point_est = this_team$running_total,
+      lower_80 = NA,
+      upper_80 = NA,
+      lower_95 = NA,
+      upper_95 = NA,
+      type = 'observed',
+      stat_name = i,
+      team_key = j,
+      stringsAsFactors = FALSE
+    )
+    
+    this_forecast <- data.frame(
+      clean_day_of_season = seq(n_days, n_days + length(stat_ets_forecast$mean) - 1, 1),
+      point_est = stat_ets_forecast$mean %>% as.numeric(),
+      lower_80 = stat_ets_forecast$lower[, 1] %>% as.numeric(),
+      upper_80 = stat_ets_forecast$upper[, 1] %>% as.numeric(),
+      lower_95 = stat_ets_forecast$lower[, 2] %>% as.numeric(),
+      upper_95 = stat_ets_forecast$upper[, 2] %>% as.numeric(),
+      type = 'forecast',
+      stringsAsFactors = FALSE
+    )
+    this_forecast$stat_name <- i
+    this_forecast$team_key <- j
+    
+    forecast_data <- rbind(forecast_data, this_observed, this_forecast)
+    
+    #now simulate
+    this_sim <- replicate(n_sim, {simulate(stat_ets, nsim = n_left + 1)[n_left + 1]})
+
+    this_sim_df <- data.frame(
+      stat_value = this_sim,
+      stat_name = i,
+      team_key = j,
+      sim_number = c(1:n_sim),
+      stringsAsFactors = FALSE
+    )
+    sim_data <- rbind(sim_data, this_sim_df)
+    
+  }
+}
+  
+#owner names
+forecast_data <- forecast_data %>% dplyr::left_join(short_names)
+sim_data <- sim_data %>% dplyr::left_join(short_names)
+
+#behind leader
+forecast_data <- forecast_data %>%
+  dplyr::group_by(
+    stat_name, clean_day_of_season
+  ) %>%
+  dplyr::mutate(
+    leader = max(point_est)
+  ) %>%
+  dplyr::mutate(
+    point_trailing = leader - point_est,
+    lower_95_trailing = leader - lower_95,
+    upper_95_trailing = leader - upper_95
+  ) %>%
+  tbl_df()
+
+#position
+sim_data <- sim_data %>%
+  group_by(stat_name, sim_number) %>%
+  dplyr::mutate(
+    final_points = rank(stat_value, ties.method = 'min')
+  )
+
+stat_labels <- forecast_data %>%
+  dplyr::group_by(stat_name) %>%
+  dplyr::filter(
+    clean_day_of_season == n_days + n_left
+  ) %>%
+  dplyr::mutate(
+    disp_label = paste0(round(lower_95,0), '-', round(upper_95, 0)),
+    upper_y = max(lower_95_trailing, na.rm = TRUE),
+    y_pos = 0.4 * upper_y,
+    font_size = ifelse(stat_name == 'TB', 14, 19)
+  ) 
+
+
+
+#charts
+h1_proj <- list()
+
+for (k in c('R', 'RBI', 'SB', 'TB')) {
+  this_stat <- k
+
+  #plots
+  p <- ggplot(
+    data = forecast_data[forecast_data$stat_name == this_stat, ],
+    aes(x = clean_day_of_season, color = type)
+    ) +
+  geom_text(
+    data = stat_labels[stat_labels$stat_name == this_stat, ],
+    aes(
+      x = 89,
+      y = y_pos,
+      label = disp_label,
+      size = font_size
+    ),
+    inherit.aes = FALSE,
+    alpha = 0.325,
+    fontface = 'bold'
+  ) +
+  geom_line(
+    aes(y = point_trailing),
+    size = 1.5
+  ) +
+  geom_line(
+    aes(y = lower_95_trailing),
+    color = '#F15A60',
+    size = 0.5,
+    lty = 'dashed'
+  ) +
+  geom_line(
+    aes(y = upper_95_trailing),
+    color = '#F15A60',
+    size = 0.5,
+    lty = 'dashed'
+  ) +  
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    panel.grid.major.x = element_blank(),
+    strip.text.x = element_text(size = 12)
+  ) +
+  facet_wrap(~owner) +
+  labs(
+    x = 'day of season (no ASB)',
+    y = 'amount behind leader',
+    title = paste0(this_stat, ' | projections')
+  ) +
+  scale_color_few() +
+  scale_size_identity()
+    
+  h1_proj[[k]] <- p
+
+}
+
+
+h2_proj <- list()
+
+for (l in c('R', 'RBI', 'SB', 'TB')) {
+  print(l)
+  this_stat <- l
+
+  pct_outcomes <- sim_data[sim_data$stat_name == this_stat, ] %>%
+    dplyr::group_by(owner, final_points) %>%
+    dplyr::summarize(
+      pct = sum(n()) / quote(n_sim),
+      ypos = quote(n_sim) * 0.03
+    )
+  
+  #plots
+  p <- ggplot(
+    data = sim_data[sim_data$stat_name == this_stat, ],
+    aes(x = final_points)
+    ) +
+  geom_histogram(color = 'white', binwidth = 1) + 
+  geom_text(
+    data = pct_outcomes, 
+    aes(x = final_points + 0.5, y = ypos, label = round(pct * 100, 0)),
+    color = 'hotpink',
+    size = 6,
+    angle = 90
+  ) +
+  facet_wrap(~owner, scales = 'free_x') + 
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    panel.grid.major.x = element_blank(),
+    strip.text.x = element_text(size = 12),
+    axis.text.x = element_text(size = 9),
+    axis.ticks.x = element_blank()
+  ) +
+  scale_x_continuous(
+    breaks = c(1.5:12.5),
+    labels = c(1:12),
+    limits = c(0,13)
+  )
+  
+  h2_proj[[l]] <- p
+}
+h2_proj[['R']]
+
+
+## ----print_h1, eval=FALSE------------------------------------------------
+## library(Cairo)
+## 
+## expander <- 1.3
+## Cairo(
+##   width = 11 * expander, height = 8.5 * expander,
+##   file = 'h_proj.pdf', type = "pdf",
+##   bg = "transparent",
+##   canvas = "white", units = "in"
+## )
+##   print(h1_proj)
+## dev.off()
+
+## ----h1_scratch, eval=FALSE----------------------------------------------
+## 
+##   ggplot(
+##     data = this_stat,
+##     aes(
+##       x = day_of_season,
+##       y = diff_from_leader
+##     )
+##   ) +
+##   geom_line() +
+## 
+##   ggplot() +
+##   geom_abline(
+##     data = bb_data,
+##     aes(
+##       intercept = intercept,
+##       slope = slope
+##     )
+##   ) +
+##   theme_bw() +
+##   facet_wrap(~team_key)
+## 
+## 
+##   p <- ggplot(mtcars, aes(x = wt, y=mpg), . ~ cyl) + geom_point()
+## df <- data.frame(a=rnorm(10, 25), b=rnorm(10, 0))
+## p + geom_abline(aes(intercept=intercept, slope=slope), data=bb_data)
+## 
+## 
+## 
+##   ggplot(
+##     data = this_stat,
+##     aes(
+##       x = day_of_season,
+##       y = diff_from_leader
+##     )
+##   ) +
+##   geom_line() +
+##   stat_smooth() +
+##   theme_bw() +
+##   facet_wrap(~ owner)
+## 
+## 
 
 ## ----place_count---------------------------------------------------------
 ranks_df <- data.frame(

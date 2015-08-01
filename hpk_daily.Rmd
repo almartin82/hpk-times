@@ -163,10 +163,12 @@ DT::datatable(
 
 # Projections | Hitting
 
-```{r hit_graphs}
+```{r hit_graphs, fig.width=12, fig.height=10, dpi=300}
 
+print(h1_proj)
 
 ```
 
+# Best Value Players
 ### _to come_
 
