@@ -700,7 +700,6 @@ best_p <- function(df) {
 
 ## ----hit1----------------------------------------------------------------
 
-
 forecast_data <- data.frame(
   clean_day_of_season = numeric(0),
   point_est = numeric(0),

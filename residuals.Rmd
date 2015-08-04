@@ -1,0 +1,237 @@
+---
+title: "end of year confidence"
+author: "Andrew Martin"
+date: "August 3, 2015"
+output: html_document
+---
+
+
+```{r load}
+library(readr)
+library(dplyr)
+library(magrittr)
+
+hpk_hist <- readr::read_csv(file = "http://hpk.s3-website-us-east-1.amazonaws.com/hpk_historic.csv")
+hpk_hist$year <- hpk_hist$date %>% as.Date(origin = '1970-01-01') %>% format("%Y") %>% as.numeric()
+hpk_hist <- tbl_df(hpk_hist)
+```
+
+for each day of the season
+#1 fit a regression of last 30 days
+#2 project to last day
+#3 record variance
+
+```{r, echo=FALSE}
+
+resid_df <- data.frame(
+  resid_type = character(0),
+  stat_name = character(0),
+  team_key = character(0),
+  year = integer(0),
+  day_of_season = integer(0),
+  date = numeric(0),
+  actual = numeric(0),
+  predicted = numeric(0),
+  residual = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+for (i in hpk_hist$year %>% unique() %>% sort()) {
+  print(i)
+  this_year <- hpk_hist[hpk_hist$year == i,]
+  clean_asb <- this_year[this_year$stat_name == 'AB' & this_year$value > 0, 'day_of_season'] %>% unique()
+  clean_asb$clean_day_of_season <- rank(clean_asb$day_of_season %>% as.numeric())
+  this_year <- this_year %>% 
+    dplyr::left_join(clean_asb, by = 'day_of_season')
+
+  this_year <- this_year %>% dplyr::group_by(team_key, stat_name) %>%
+    dplyr::arrange(stat_name, team_key, date) %>%
+    dplyr::filter(!is.na(value)) %>%
+    dplyr::mutate(
+      running_total = cumsum(value)
+    )
+
+  max_day <- max(this_year$clean_day_of_season)
+  eoy_stats <- this_year[this_year$clean_day_of_season == max_day, ] %>%
+    dplyr::select(team_key, stat_name, running_total)
+  names(eoy_stats)[3] <- 'final_value'
+  this_year <- this_year %>% 
+    left_join(eoy_stats, by=c('team_key', 'stat_name'))
+
+  for (j in this_year$clean_day_of_season %>% unique() %>% sort()) {
+    print(j)
+    this_date <- this_year[this_year$clean_day_of_season == j, ]
+    until_today <- this_year[this_year$clean_day_of_season <= j, ]
+
+#     if (this_date$day_of_season %>% unique() < 30) {
+#       next
+#     }  
+  
+    stat_intercept <- function(stat_value, day) {
+      lm(stat_value ~ day) %>% coefficients() %>% extract(1) 
+    }
+    stat_slope <- function(stat_value, day) {
+      lm(stat_value ~ day) %>% coefficients() %>% extract(2) 
+    }
+
+    #slope for whole year
+    this_models <- until_today %>% 
+      dplyr::group_by(team_key, stat_name) %>%
+      dplyr::summarize(
+        intercept_all = stat_intercept(running_total, clean_day_of_season),
+        slope_all = stat_slope(running_total, clean_day_of_season)
+      ) 
+    
+    this_date_all <- this_date %>%
+      left_join(this_models, by=c('team_key', 'stat_name'))
+    
+    this_date_all$final_predicted_all <- max_day * this_date_all$slope_all + 
+      this_date_all$intercept_all
+    this_date_all$final_residual_all <- this_date_all$final_predicted_all - 
+      this_date_all$final_value
+
+    #slope for past 30
+    this_models_30 <- until_today[until_today$clean_day_of_season >= j - 30, ] %>% 
+      dplyr::group_by(team_key, stat_name) %>%
+      dplyr::summarize(
+        intercept_30 = stat_intercept(running_total, clean_day_of_season),
+        slope_30 = stat_slope(running_total, clean_day_of_season)
+      ) 
+
+    this_date_30 <- this_date %>%
+      left_join(this_models_30, by=c('team_key', 'stat_name'))
+
+    this_date_30$final_predicted_30 <- max_day * this_date_30$slope_30 + 
+      this_date_30$intercept_30
+    this_date_30$final_residual_30 <- this_date_30$final_predicted_30 -  
+      this_date_30$final_value
+
+              
+    this_resid_all <- data.frame(
+      resid_type = 'all',
+      stat_name = this_date_all$stat_name,
+      team_key = this_date_all$team_key,
+      year = this_date_all$year,
+      day_of_season = this_date_all$clean_day_of_season,
+      date = this_date_all$date,
+      actual = this_date_all$final_value,
+      predicted = this_date_all$final_predicted_all,
+      residual = this_date_all$final_residual_all,
+      stringsAsFactors = FALSE
+    )
+        
+    this_resid_30 <- data.frame(
+      resid_type = 'last30',
+      stat_name = this_date_30$stat_name,
+      team_key = this_date_30$team_key,
+      year = this_date_30$year,
+      day_of_season = this_date_30$clean_day_of_season,
+      date = this_date_30$date,
+      actual = this_date_30$final_value,
+      predicted = this_date_30$final_predicted_30,
+      residual = this_date_30$final_residual_30,
+      stringsAsFactors = FALSE
+    )
+
+    resid_df <- rbind(resid_df, this_resid_all, this_resid_30)
+    
+  }
+}
+
+
+```
+
+eda
+```{r}
+
+var_list_all <- list()
+var_list_30 <- list()
+resid_df$resid_as_pct <- (resid_df$residual / resid_df$actual) * 100
+
+for (k in c('R', 'RBI', 'SB', 'TB', 'OB', 'W', 'SV', 'K', 'WH Allowed', 'Runs Allowed')) {
+  print(k)
+  
+  p1 <- ggplot(
+    data = resid_df[resid_df$stat_name == k & resid_df$resid_type == 'all', ],
+    aes(
+      x = day_of_season,
+      y = resid_as_pct
+    )
+  ) +
+  geom_point() +
+  theme_bw() +
+  labs(
+    x = 'day of season',
+    y = 'residual, as pct of final value' 
+  ) + 
+  coord_cartesian(
+    ylim = c(-50, 50)
+  )
+  
+  p2 <- p1 %+% resid_df[resid_df$stat_name == k & resid_df$resid_type == 'last30', ]
+  var_list_all[[k]] <- p1 + labs(title = paste0(k, ' | data = all season'))
+  var_list_30[[k]] <- p2 + labs(title = paste0(k, ' | data = 30 day windows'))
+  
+}
+
+library(Cairo)
+
+expander <- 1.3
+Cairo(
+  width = 11 * expander, height = 8.5 * expander,
+  file = 'variance_all.pdf', type = "pdf",
+  bg = "transparent",
+  canvas = "white", units = "in"
+)
+  print(var_list_all)
+dev.off()
+
+Cairo(
+  width = 11 * expander, height = 8.5 * expander,
+  file = 'variance_30.pdf', type = "pdf",
+  bg = "transparent",
+  canvas = "white", units = "in"
+)
+  print(var_list_30)
+dev.off()
+
+```
+
+```{r scratch}
+    ggplot(
+      data = until_today,
+      aes(
+        x = day_of_season,
+        group = team_key
+      )
+    ) +
+    geom_point(
+      aes(y = running_total)
+    ) +
+    geom_point(
+      aes(y = predicted),
+      color = 'hotpink'
+    ) +
+    facet_wrap(~stat_name) +
+    theme_bw()
+    
+    hist(until_today$final_residual_all)
+    
+    ggplot(
+      data = until_today %>% 
+        dplyr::filter(
+          stat_name %in% c('R', 'RBI')
+        ),
+      aes(
+        x = final_residual_all
+      )
+    ) +
+    geom_density() +
+    facet_wrap(~stat_name) +
+    theme_bw()
+
+
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
