@@ -1,11 +1,11 @@
 ## ----lib-----------------------------------------------------------------
-suppressPackageStartupMessages(suppressWarnings(library(readr)))
-suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
-suppressPackageStartupMessages(suppressWarnings(library(zoo)))
-suppressPackageStartupMessages(suppressWarnings(library(tidyr)))
-suppressPackageStartupMessages(suppressWarnings(library(magrittr)))
-suppressPackageStartupMessages(suppressWarnings(library(fitdistrplus)))
-suppressPackageStartupMessages(suppressWarnings(library(knitr)))
+library(readr)
+library(dplyr)
+library(zoo)
+library(tidyr)
+library(magrittr)
+library(fitdistrplus)
+library(knitr)
 library(forecast)
 library(ggplot2)
 library(ggthemes)
@@ -456,7 +456,7 @@ convert_p_stats <- function(df) {
   ip <- df %>%
     dplyr::filter(stat_name == 'IP')
   
-  names(ip)[names(ip)=='total_value'] <- 'IP'
+  names(ip)[names(ip) == 'total_value'] <- 'IP'
   
   #join rate to ip
   rate <- rate %>%
@@ -697,6 +697,373 @@ best_p <- function(df) {
     )
 }
 
+
+## ----sim_new-------------------------------------------------------------
+
+cur_stats <- all_table_stats(hpk_clean)
+cur_stats_long <- cur_stats %>% tidyr::gather(key = 'owner')
+names(cur_stats_long)[2] <- 'stat_name'
+
+cur_stats_long <- cur_stats_long %>%
+  left_join(short_names)
+  
+resid_df <- readr::read_csv(file = 'residuals.csv')
+
+#drop the all star break
+clean_asb <- hpk_clean[hpk_clean$stat_name == 'AB' & hpk_clean$value > 0, 'day_of_season'] %>% unique()
+clean_asb$clean_day_of_season <- rank(clean_asb$day_of_season %>% as.numeric())
+    
+pred_data <- hpk_clean %>% 
+    dplyr::left_join(short_names) %>%
+    dplyr::left_join(clean_asb, by = 'day_of_season')
+
+max_day <- pred_data$clean_day_of_season %>% max()
+
+pred_data <- pred_data %>% 
+  dplyr::group_by(team_key, stat_name) %>%
+  dplyr::arrange(
+    team_key, stat_name, date
+  ) %>%
+  dplyr::filter(!is.na(value)) %>%
+  dplyr::mutate(
+    running_total = cumsum(value)
+  )
+
+#sim data
+sim_df <- data.frame(
+  team_key = character(0),
+  stat_name = character(0),
+  sim = integer(0),
+  final_value = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+#simple counting
+simple_counting <- c('R', 'RBI', 'SB', 'TB')
+for (k in simple_counting) {
+  print(k)
+  this_resid <- resid_df[resid_df$stat_name == k & 
+    resid_df$day_of_season <= max_day & resid_df$day_of_season >= max_day - 7 &
+    resid_df$resid_type == 'all', ]
+  
+  pred_mean <- this_resid$residual %>% mean(na.rm = TRUE)
+  pred_sd <- this_resid$residual %>% sd(na.rm = TRUE)
+  
+  for (l in cur_stats_long$team_key %>% unique()) {
+    print(l)
+    base <- cur_stats_long %>%
+      filter(team_key == l & stat_name == k) %>%
+      select(value) %>%
+      unlist() %>% unname()
+    futures <- rnorm(10000, pred_mean, pred_sd)
+    sim <- c(1:10000)
+    
+    #regression
+    this_team_stat <- pred_data %>% 
+      filter(stat_name == k & team_key == l)
+    model <- lm(this_team_stat$running_total ~ this_team_stat$clean_day_of_season) 
+    predicted_end <- model$coefficients[1] + 178 * model$coefficients[2]
+    
+    this_sim <- data.frame(
+      team_key = l,
+      stat_name = k,
+      sim = sim,
+      final_value = predicted_end + futures,
+      stringsAsFactors = FALSE
+    )
+    
+    sim_df <- rbind(sim_df, this_sim)
+  }
+}
+
+#obp
+ob_resid <- resid_df[resid_df$stat_name == 'OB' & 
+    resid_df$day_of_season <= max_day & resid_df$day_of_season >= max_day - 7 &
+    resid_df$resid_type == 'all', ]
+  
+pred_mean <- ob_resid$residual %>% mean(na.rm = TRUE)
+pred_sd <- ob_resid$residual %>% sd(na.rm = TRUE)
+
+for (l in cur_stats_long$team_key %>% unique()) {
+  print(l) 
+  base <- hpk_clean %>%
+    filter(team_key == l & stat_name == 'OB') %>%
+    summarize(
+      running_total = sum(value)
+    ) %>% ungroup() %>%
+    dplyr::select(running_total) %>% unlist() %>% unname()
+  futures <- rnorm(10000, pred_mean, pred_sd)
+  sim <- c(1:10000)
+  #regression
+  this_team_obp <- pred_data %>% 
+    filter(stat_name == 'OB' & team_key == l)
+  model <- lm(this_team_obp$running_total ~ this_team_obp$clean_day_of_season) 
+  predicted_end <- model$coefficients[1] + 178 * model$coefficients[2]
+  
+  #prorate attbats
+  atbats <- hpk_clean %>%
+    filter(team_key == l & stat_name == 'AB') %>%
+    summarize(
+      running_total = sum(value)
+    ) %>% ungroup() %>%
+    dplyr::select(running_total) %>% unlist() %>% unname()
+  
+  prorate <- max_day / (max_day + n_left)
+  
+  obp_sim <- data.frame(
+    team_key = l,
+    stat_name = 'OBP',
+    sim = sim,
+    final_value = (predicted_end + futures) / (atbats / prorate),
+    stringsAsFactors = FALSE
+  )
+  
+  sim_df <- rbind(sim_df, obp_sim)
+}
+
+
+pitch_counting <- c('W', 'SV', 'K')
+for (k in pitch_counting) {
+  print(k)
+  
+  for (l in cur_stats_long$team_key %>% unique()) {
+    print(l)
+    base <- hpk_clean %>%
+      filter(team_key == l & stat_name == k) %>%
+      summarize(
+        running_total = sum(value)
+      ) %>% ungroup() %>%
+      dplyr::select(running_total) %>% unlist() %>% unname()
+    
+    #get the users ip utilization
+    this_team_ip <- pred_data %>% 
+      filter(stat_name == 'IP' & team_key == l)    
+    this_team_stat <- pred_data %>% 
+      filter(stat_name == k & team_key == l)
+    pct_used <- this_team_ip$running_total %>% max() / 1500
+    effective_day <- pct_used * 179 %>% round(0)
+    
+    #use that to look up residuals
+    this_resid <- resid_df[resid_df$stat_name == k & 
+      resid_df$day_of_season <= effective_day & resid_df$day_of_season >= effective_day - 7 &
+      resid_df$resid_type == 'all', ]
+    pred_mean <- this_resid$residual %>% mean(na.rm = TRUE)
+    pred_sd <- this_resid$residual %>% sd(na.rm = TRUE)
+    
+    #predict when user will cross 1500 IP
+    ip_model <- lm(running_total ~ clean_day_of_season, data = this_team_ip)
+    
+    #project to that date
+    last_p_day <- (1500 + ip_model$coefficients[1]) / ip_model$coefficients[2]
+    
+    #can't use more than 180 days
+    if (last_p_day > 180) last_p_day <- 180
+    
+    #regression
+    this_team_p <- pred_data %>% 
+      filter(stat_name == k & team_key == l)
+    model <- lm(this_team_p$running_total ~ this_team_p$clean_day_of_season) 
+    predicted_end <- model$coefficients[1] + last_p_day * model$coefficients[2]
+    
+    #record
+    futures <- rnorm(10000, pred_mean, pred_sd)
+    sim <- c(1:10000)
+    
+    this_sim <- data.frame(
+      team_key = l,
+      stat_name = k,
+      sim = sim,
+      final_value = predicted_end + futures,
+      stringsAsFactors = FALSE
+    )
+    
+    sim_df <- rbind(sim_df, this_sim)
+  }
+}
+
+
+#era
+for (l in cur_stats_long$team_key %>% unique()) {
+    print(l)
+    base <- hpk_clean %>%
+      filter(team_key == l & stat_name == 'Runs Allowed') %>%
+      summarize(
+        running_total = sum(value)
+      ) %>% ungroup() %>%
+      dplyr::select(running_total) %>% unlist() %>% unname()
+    
+    #get the users ip utilization
+    this_team_ip <- pred_data %>% 
+      filter(stat_name == 'IP' & team_key == l)    
+    this_team_stat <- pred_data %>% 
+      filter(stat_name == 'Runs Allowed' & team_key == l)
+    pct_used <- this_team_ip$running_total %>% max() / 1500
+    effective_day <- pct_used * 179 %>% round(0)
+    
+    #use that to look up residuals
+    this_resid <- resid_df[resid_df$stat_name == 'Runs Allowed' & 
+      resid_df$day_of_season <= effective_day & resid_df$day_of_season >= effective_day - 7 &
+      resid_df$resid_type == 'all', ]
+    pred_mean <- this_resid$residual %>% mean(na.rm = TRUE)
+    pred_sd <- this_resid$residual %>% sd(na.rm = TRUE)
+    
+    #predict when user will cross 1500 IP
+    ip_model <- lm(running_total ~ clean_day_of_season, data = this_team_ip)
+    
+    #project to that date
+    last_p_day <- (1500 + ip_model$coefficients[1]) / ip_model$coefficients[2]
+    
+    #can't use more than 180 days
+    if (last_p_day > 180) last_p_day <- 180
+    
+    #regression
+    this_team_p <- pred_data %>% 
+      filter(stat_name == 'Runs Allowed' & team_key == l)
+    model <- lm(this_team_p$running_total ~ this_team_p$clean_day_of_season) 
+    predicted_end <- model$coefficients[1] + last_p_day * model$coefficients[2]
+    predicted_ip <- ip_model$coefficients[1] + 179 * ip_model$coefficients[2]
+    
+    #record
+    futures <- rnorm(10000, pred_mean, pred_sd)
+    sim <- c(1:10000)
+    
+    this_sim <- data.frame(
+      team_key = l,
+      stat_name = 'ERA',
+      sim = sim,
+      final_value = ((predicted_end + futures) / predicted_ip) * 9,
+      stringsAsFactors = FALSE
+    )
+    
+    sim_df <- rbind(sim_df, this_sim)
+}
+
+
+#whip
+for (l in cur_stats_long$team_key %>% unique()) {
+    print(l)
+    base <- hpk_clean %>%
+      filter(team_key == l & stat_name == 'WH Allowed') %>%
+      summarize(
+        running_total = sum(value)
+      ) %>% ungroup() %>%
+      dplyr::select(running_total) %>% unlist() %>% unname()
+    
+    #get the users ip utilization
+    this_team_ip <- pred_data %>% 
+      filter(stat_name == 'IP' & team_key == l)    
+    this_team_stat <- pred_data %>% 
+      filter(stat_name == 'WH Allowed' & team_key == l)
+    pct_used <- this_team_ip$running_total %>% max() / 1500
+    effective_day <- pct_used * 179 %>% round(0)
+    
+    #use that to look up residuals
+    this_resid <- resid_df[resid_df$stat_name == 'WH Allowed' & 
+      resid_df$day_of_season <= effective_day & resid_df$day_of_season >= effective_day - 7 &
+      resid_df$resid_type == 'all', ]
+    pred_mean <- this_resid$residual %>% mean(na.rm = TRUE)
+    pred_sd <- this_resid$residual %>% sd(na.rm = TRUE)
+    
+    #predict when user will cross 1500 IP
+    ip_model <- lm(running_total ~ clean_day_of_season, data = this_team_ip)
+    
+    #project to that date
+    last_p_day <- (1500 + ip_model$coefficients[1]) / ip_model$coefficients[2]
+    
+    #can't use more than 180 days
+    if (last_p_day > 180) last_p_day <- 180
+    
+    #regression
+    this_team_p <- pred_data %>% 
+      filter(stat_name == 'WH Allowed' & team_key == l)
+    model <- lm(this_team_p$running_total ~ this_team_p$clean_day_of_season) 
+    predicted_end <- model$coefficients[1] + last_p_day * model$coefficients[2]
+    predicted_ip <- ip_model$coefficients[1] + 179 * ip_model$coefficients[2]
+    
+    #record
+    futures <- rnorm(10000, pred_mean, pred_sd)
+    sim <- c(1:10000)
+    
+    this_sim <- data.frame(
+      team_key = l,
+      stat_name = 'WHIP',
+      sim = sim,
+      final_value = (predicted_end + futures) / predicted_ip,
+      stringsAsFactors = FALSE
+    )
+    
+    sim_df <- rbind(sim_df, this_sim)
+}
+
+
+
+## ----who_won-------------------------------------------------------------
+
+sim_f <- sim_df
+sim_f$final_value <- ifelse(sim_f$stat_name %in% c('ERA', 'WHIP'), sim_f$final_value * -1, sim_f$final_value)
+
+sim_f <- sim_f %>%
+  tbl_df() %>%
+  dplyr::group_by(stat_name, sim) %>%
+  dplyr::mutate(
+    stat_rank = rank(final_value)
+  )
+
+sim_f <- sim_f %>%
+  left_join(short_names)
+
+final_position <- sim_f %>%
+  group_by(sim, team_key, owner) %>%
+  summarize(
+    total_points = sum(stat_rank)
+  ) %>%
+  mutate(
+    final_rank = rank(-total_points)
+  )
+
+
+final_position$won_league <- ifelse(final_position$final_rank == 1, 1, 0)
+
+pct_win <- final_position %>%
+  group_by(owner) %>%
+  summarize(
+    num_wins = sum(won_league),
+    pct_win = (num_wins / 10000) * 100 %>% round(1)
+  )
+
+avg_finish <- final_position %>%
+  group_by(owner) %>%
+  summarize(
+    avg_finish = mean(final_rank)
+  ) %>%
+  arrange(avg_finish)
+  
+
+stat_sims <- list()
+
+for (i in sim_f$stat_name %>% unique()) {
+  print(i)
+  
+  p <- ggplot(
+    data = sim_f[sim_f$stat_name == i, ],
+    aes(
+      x = stat_rank
+    )
+  ) +
+  geom_histogram(
+    color = 'white',
+    binwidth = 1
+  ) +
+  theme_bw() +
+  facet_wrap(~owner) +
+  labs(
+    x = 'rank',
+    y = 'frequency',
+    title = i
+  )
+  
+  stat_sims[[i]] <- p
+}
 
 ## ----hit1----------------------------------------------------------------
 
@@ -946,6 +1313,62 @@ for (l in c('R', 'RBI', 'SB', 'TB')) {
   h2_proj[[l]] <- p
 }
 h2_proj[['R']]
+
+
+## ----bayes_boot, eval = FALSE--------------------------------------------
+## # Performs a Bayesian bootstrap and returns a sample of size n1 representing the
+## # posterior distribution of the statistic. Returns a vector if the statistic is
+## # one-dimensional (like for mean(...)) or a data.frame if the statistic is
+## # multi-dimensional (like for the coefs. of lm).
+## # Parameters
+## #   data      The data as either a vector, matrix or data.frame.
+## #   statistic A function that accepts data as its first argument and possibly
+## #             the weights as its second, if use_weights is TRUE.
+## #             Should return a numeric vector.
+## #   n1        The size of the bootstrap sample.
+## #   n2        The sample size used to calculate the statistic each bootstrap draw.
+## #   use_weights  Whether the statistic function accepts a weight argument or
+## #                should be calculated using resampled data.
+## #   weight_arg   If the statistic function includes a named argument for the
+## #                weights this could be specified here.
+## #   ...       Further arguments passed on to the statistic function.
+## bayes_boot <- function(data, statistic, n1 = 1000, n2 = 1000 , use_weights = FALSE, weight_arg = NULL, ...) {
+##   # Draw from a uniform Dirichlet dist. with alpha set to rep(1, n_dim).
+##   # Using the facts that you can transform gamma distributed draws into
+##   # Dirichlet draws and that rgamma(n, 1) <=> rexp(n, 1)
+##   dirichlet_weights <- matrix( rexp(NROW(data) * n1, 1) , ncol = NROW(data), byrow = TRUE)
+##   dirichlet_weights <- dirichlet_weights / rowSums(dirichlet_weights)
+## 
+##   if(use_weights) {
+##     stat_call <- quote(statistic(data, w, ...))
+##     names(stat_call)[3] <- weight_arg
+##     boot_sample <- apply(dirichlet_weights, 1, function(w) {
+##       eval(stat_call)
+##     })
+##   } else {
+##     if(is.null(dim(data)) || length(dim(data)) < 2) { # data is a list type of object
+##       boot_sample <- apply(dirichlet_weights, 1, function(w) {
+##         data_sample <- sample(data, size = n2, replace = TRUE, prob = w)
+##         statistic(data_sample, ...)
+##       })
+##     } else { # data is a table type of object
+##       boot_sample <- apply(dirichlet_weights, 1, function(w) {
+##         index_sample <- sample(nrow(data), size = n2, replace = TRUE, prob = w)
+##         statistic(data[index_sample, ,drop = FALSE], ...)
+##       })
+##     }
+##   }
+##   if(is.null(dim(boot_sample)) || length(dim(boot_sample)) < 2) {
+##     # If the bootstrap sample is just a simple vector return it.
+##     boot_sample
+##   } else {
+##     # Otherwise it is a matrix. Since apply returns one row per statistic
+##     # let's transpose it and return it as a data frame.
+##     as.data.frame(t(boot_sample))
+##   }
+## }
+
+## ------------------------------------------------------------------------
 
 
 ## ----print_h1, eval=FALSE------------------------------------------------

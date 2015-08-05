@@ -1,9 +1,0 @@
----
-title: "rmd ex"
-author: "andrew martin"
-output: html_document
----
-
-```{r}
-head(iris)
-```

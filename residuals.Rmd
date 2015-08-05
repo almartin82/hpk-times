@@ -10,6 +10,8 @@ output: html_document
 library(readr)
 library(dplyr)
 library(magrittr)
+library(zoo)
+library(ggplot2)
 
 hpk_hist <- readr::read_csv(file = "http://hpk.s3-website-us-east-1.amazonaws.com/hpk_historic.csv")
 hpk_hist$year <- hpk_hist$date %>% as.Date(origin = '1970-01-01') %>% format("%Y") %>% as.numeric()
@@ -51,27 +53,34 @@ for (i in hpk_hist$year %>% unique() %>% sort()) {
       running_total = cumsum(value)
     )
 
-  max_day <- max(this_year$clean_day_of_season)
-  eoy_stats <- this_year[this_year$clean_day_of_season == max_day, ] %>%
-    dplyr::select(team_key, stat_name, running_total)
-  names(eoy_stats)[3] <- 'final_value'
+  
+  max_day <- this_year %>% 
+    group_by(team_key, stat_name) %>% 
+    filter(!is.na(running_total)) %>%
+    summarize(clean_day_of_season = max(clean_day_of_season))
+  
+  
+  eoy_stats <- max_day %>%
+    left_join(
+      this_year[, c('team_key', 'stat_name', 'clean_day_of_season', 'running_total')], 
+      by = c("team_key", "stat_name", "clean_day_of_season")
+    )
+  names(eoy_stats)[3] <- 'max_day'
+  names(eoy_stats)[4] <- 'final_value'
+
   this_year <- this_year %>% 
-    left_join(eoy_stats, by=c('team_key', 'stat_name'))
+    left_join(eoy_stats, by = c('team_key', 'stat_name'))
 
   for (j in this_year$clean_day_of_season %>% unique() %>% sort()) {
     print(j)
     this_date <- this_year[this_year$clean_day_of_season == j, ]
     until_today <- this_year[this_year$clean_day_of_season <= j, ]
 
-#     if (this_date$day_of_season %>% unique() < 30) {
-#       next
-#     }  
-  
     stat_intercept <- function(stat_value, day) {
       lm(stat_value ~ day) %>% coefficients() %>% extract(1) 
     }
     stat_slope <- function(stat_value, day) {
-      lm(stat_value ~ day) %>% coefficients() %>% extract(2) 
+      lm(stat_value ~ day) %>% coefficients() %>% extract(2)
     }
 
     #slope for whole year
@@ -85,7 +94,7 @@ for (i in hpk_hist$year %>% unique() %>% sort()) {
     this_date_all <- this_date %>%
       left_join(this_models, by=c('team_key', 'stat_name'))
     
-    this_date_all$final_predicted_all <- max_day * this_date_all$slope_all + 
+    this_date_all$final_predicted_all <- this_date_all$max_day * this_date_all$slope_all + 
       this_date_all$intercept_all
     this_date_all$final_residual_all <- this_date_all$final_predicted_all - 
       this_date_all$final_value
@@ -101,7 +110,7 @@ for (i in hpk_hist$year %>% unique() %>% sort()) {
     this_date_30 <- this_date %>%
       left_join(this_models_30, by=c('team_key', 'stat_name'))
 
-    this_date_30$final_predicted_30 <- max_day * this_date_30$slope_30 + 
+    this_date_30$final_predicted_30 <- this_date_30$max_day * this_date_30$slope_30 + 
       this_date_30$intercept_30
     this_date_30$final_residual_30 <- this_date_30$final_predicted_30 -  
       this_date_30$final_value
@@ -139,10 +148,12 @@ for (i in hpk_hist$year %>% unique() %>% sort()) {
 }
 
 
+write.csv(resid_df, 'residuals.csv', row.names = FALSE)
+
 ```
 
 eda
-```{r}
+```{r, eval=FALSE}
 
 var_list_all <- list()
 var_list_30 <- list()
@@ -197,7 +208,10 @@ dev.off()
 
 ```
 
-```{r scratch}
+
+
+
+```{r scratch, eval=FALSE}
     ggplot(
       data = until_today,
       aes(
@@ -231,7 +245,16 @@ dev.off()
     theme_bw()
 
 
+    # resid_final <- resid_df %>%
+  dplyr::group_by(stat_name, resid_type, year) %>%
+  dplyr::arrange(resid_type, team_key, stat_name, day_of_season) %>%
+  dplyr::mutate(
+    rollmean7 = rollmeanr(x = residual, k = 7, na.pad = TRUE) %>% round(3),
+    rollsd7 = rollapply(
+      data = residual, width = 7, align = 'right', fill = NA, FUN = sd
+    ) %>% round(3)
+  )
+
 
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

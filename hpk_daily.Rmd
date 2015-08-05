@@ -48,7 +48,7 @@ DT::datatable(
 
 # Previous 14 days
 
-```{r prev_2week, cache=FALSE}
+```{r prev_2week}
 
 DT::datatable(
   all_table_stats(hpk_2week) %>% as.data.frame(), 
@@ -66,7 +66,7 @@ DT::datatable(
 
 # Previous 30 days
 
-```{r month_standings, cache=FALSE}
+```{r month_standings}
 
 DT::datatable(
   all_table_stats(hpk_month) %>% as.data.frame(), 
@@ -143,7 +143,7 @@ DT::datatable(
 
 # Average Place
 
-```{r av_place, cache=FALSE}
+```{r av_place}
 
 rank_avg
 
@@ -161,9 +161,24 @@ DT::datatable(
 
 ```
 
+# Odds of Winning (10K simulations)
+```{r odds1}
+pct_win
+
+avg_finish
+
+```
+
+
+```{r sim_graphs1, fig.width=12, fig.height=10, dpi=300, eval = FALSE}
+
+print(stat_sims)
+
+```
+
 # Projections | Hitting
 
-```{r hit_graphs, fig.width=12, fig.height=10, dpi=300}
+```{r hit_graphs, fig.width=12, fig.height=10, dpi=300, eval = FALSE}
 
 print(h1_proj)
 
