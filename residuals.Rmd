@@ -152,6 +152,176 @@ write.csv(resid_df, 'residuals.csv', row.names = FALSE)
 
 ```
 
+
+tuning the regression model to get the right mix of all season and past 30 days
+```{r}
+hpk_hist$year <- hpk_hist$date %>% as.Date(origin = '1970-01-01') %>% format("%Y") %>% as.numeric()
+
+yr_2014 <- hpk_hist[hpk_hist$year == 2014,]
+clean_asb <- yr_2014[yr_2014$stat_name == 'AB' & yr_2014$value > 0, 'day_of_season'] %>% unique()
+clean_asb$clean_day_of_season <- rank(clean_asb$day_of_season %>% as.numeric())
+yr_2014 <- yr_2014 %>% 
+  dplyr::left_join(clean_asb, by = 'day_of_season')
+
+yr_2014 <- yr_2014 %>% dplyr::group_by(team_key, stat_name) %>%
+  dplyr::arrange(stat_name, team_key, date) %>%
+  dplyr::filter(!is.na(value)) %>%
+  dplyr::mutate(
+    running_total = cumsum(value)
+  )
+
+
+max_day <- yr_2014 %>% 
+  group_by(team_key, stat_name) %>% 
+  filter(!is.na(running_total)) %>%
+  summarize(clean_day_of_season = max(clean_day_of_season))
+
+
+eoy_stats <- max_day %>%
+  left_join(
+    yr_2014[, c('team_key', 'stat_name', 'clean_day_of_season', 'running_total')], 
+    by = c("team_key", "stat_name", "clean_day_of_season")
+  )
+names(eoy_stats)[3] <- 'max_day'
+names(eoy_stats)[4] <- 'final_value'
+
+yr_2014 <- yr_2014 %>% 
+  left_join(eoy_stats, by = c('team_key', 'stat_name'))
+
+#GET SLOPES
+
+j = 32
+this_date <- yr_2014[yr_2014$clean_day_of_season == j, ]
+until_today <- yr_2014[yr_2014$clean_day_of_season <= j, ]
+
+stat_intercept <- function(stat_value, day) {
+  lm(stat_value ~ day) %>% coefficients() %>% extract(1) 
+}
+stat_slope <- function(stat_value, day) {
+  lm(stat_value ~ day) %>% coefficients() %>% extract(2)
+}
+
+#slope for whole year
+this_models <- until_today %>% 
+  dplyr::group_by(team_key, stat_name) %>%
+  dplyr::summarize(
+    intercept_all = stat_intercept(running_total, clean_day_of_season),
+    slope_all = stat_slope(running_total, clean_day_of_season)
+  ) 
+
+this_date_all <- this_date %>%
+  left_join(this_models, by = c('team_key', 'stat_name'))
+
+this_date_all$final_predicted_all <- this_date_all$max_day * this_date_all$slope_all + 
+  this_date_all$intercept_all
+
+#slope for past 30
+this_models_30 <- until_today[until_today$clean_day_of_season >= j - 30, ] %>% 
+  dplyr::group_by(team_key, stat_name) %>%
+  dplyr::summarize(
+    intercept_30 = stat_intercept(running_total, clean_day_of_season),
+    slope_30 = stat_slope(running_total, clean_day_of_season)
+  ) 
+
+this_date_30 <- this_date %>%
+  left_join(this_models_30, by = c('team_key', 'stat_name'))
+
+this_date_30$final_predicted_30 <- this_date_30$max_day * this_date_30$slope_30 + 
+  this_date_30$intercept_30
+
+possible_mixes <- data.frame(
+  all = c(0:100),
+  p30 = c(100:0)
+)
+
+tuning_df <- data.frame(
+  all = integer(0),
+  p30 = integer(0),
+  resid = numeric(0)
+)
+
+for (i in 1:nrow(possible_mixes)) {
+  e_all <- (possible_mixes[i, 1] / 100) * this_date_all$final_predicted_all
+  e_p30 <- (possible_mixes[i, 2] / 100) * this_date_30$final_predicted_30
+  
+  e_final <- e_all + e_p30 
+  e_residual <- e_final - this_date_all$final_value
+  e_resid_as_pct <- (e_residual / this_date_all$final_value) * 100
+
+  e_result <- data.frame(
+    all = possible_mixes[i, 1],
+    p30 = possible_mixes[i, 2],
+    resid = e_resid_as_pct
+  )
+  
+  tuning_df <- rbind(tuning_df, e_result)
+}
+
+tuning_sum <- tuning_df %>%
+  group_by(all, p30) %>%
+  summarize(
+    avg_resid = mean(resid)
+  )
+
+
+ggplot(
+  data = tuning_sum,
+  aes(x=all, y = avg_resid)
+) +
+geom_point() +
+theme_bw()
+
+```
+
+
+
+```{r}
+resid_df$resid_as_pct <- (resid_df$residual / resid_df$actual) * 100
+
+resid_sum <- resid_df %>%
+  group_by(resid_type, stat_name, day_of_season) %>%
+  summarize(
+    mean_resid = mean(residual, na.rm = TRUE)
+  )
+
+resid_plots <- list()
+
+for (i in resid_sum$stat_name %>% unique() %>% sort) {
+  
+  p <- ggplot(
+    data = resid_sum[resid_sum$stat_name == i & resid_sum$day_of_season > 20, ],
+    aes(
+      x = day_of_season,
+      y = mean_resid,
+      group = resid_type,
+      color = resid_type
+    )
+  ) +
+  geom_point() +
+  theme_bw()
+  
+  resid_plots[[i]] <- p
+}
+
+library(Cairo)
+
+expander <- 1.3
+Cairo(
+  width = 11 * expander, height = 8.5 * expander,
+  file = 'resid_by_time.pdf', type = "pdf",
+  bg = "transparent",
+  canvas = "white", units = "in"
+)
+  print(resid_plots)
+dev.off()
+
+
+
+```
+
+
+
+
 eda
 ```{r, eval=FALSE}
 

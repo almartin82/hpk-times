@@ -170,7 +170,7 @@ avg_finish
 ```
 
 
-```{r sim_graphs1, fig.width=12, fig.height=10, dpi=300, eval = FALSE}
+```{r sim_graphs1, fig.width=12, fig.height=10, dpi=300}
 
 print(stat_sims)
 

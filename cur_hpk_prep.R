@@ -1013,13 +1013,16 @@ sim_f <- sim_f %>%
   left_join(short_names)
 
 final_position <- sim_f %>%
-  group_by(sim, team_key, owner) %>%
+  group_by(sim, team_key) %>%
   summarize(
     total_points = sum(stat_rank)
   ) %>%
   mutate(
     final_rank = rank(-total_points)
   )
+
+final_position <- final_position %>%
+  left_join(short_names)
 
 
 final_position$won_league <- ifelse(final_position$final_rank == 1, 1, 0)
