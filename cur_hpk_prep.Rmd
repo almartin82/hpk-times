@@ -18,17 +18,29 @@ library(forecast)
 library(ggplot2)
 library(ggthemes)
 
+once_a_year <- FALSE
+
 knitr::opts_chunk$set(cache = FALSE)
 ```
 
 read the csvs
 ```{r csv}
 
-hpk_cur <- readr::read_csv(file = "http://hpk.s3-website-us-east-1.amazonaws.com/hpk_2015.csv", na = "-")
+hpk_cur <- readr::read_csv(file = "http://hpk.s3-website-us-east-1.amazonaws.com/hpk_2017.csv", na = "-")
 
-hpk_hist <- readr::read_csv(file = "http://hpk.s3-website-us-east-1.amazonaws.com/hpk_historic.csv")
+hpk_hist <- readr::read_csv(file = "http://hpk.s3-website-us-east-1.amazonaws.com/hpk_historic_thru_2016.csv")
 
 owners <- readr::read_csv(file = "http://hpk.s3-website-us-east-1.amazonaws.com/all_owners.csv")
+
+```
+
+```{r eval = once_a_year}
+
+hpk_2015 <- readr::read_csv(file = "http://hpk.s3-website-us-east-1.amazonaws.com/hpk_2015.csv", na = "-") 
+
+hpk_2016 <- readr::read_csv(file = "http://hpk.s3-website-us-east-1.amazonaws.com/hpk_2015.csv", na = "-") 
+
+hpk_old <- dplyr::bind_rows(hpk_2015, hpk_2016)
 
 ```
 
@@ -37,13 +49,15 @@ bootleg
 
 short_names <- data.frame(
   team_key = c(
-    '346.l.49099.t.1', '346.l.49099.t.2', '346.l.49099.t.3',
-    '346.l.49099.t.4', '346.l.49099.t.5', '346.l.49099.t.6',
-    '346.l.49099.t.7', '346.l.49099.t.8', '346.l.49099.t.9',
-    '346.l.49099.t.10', '346.l.49099.t.11', '346.l.49099.t.12'
+    '370.l.107101.t.1', '370.l.107101.t.2', '370.l.107101.t.3',
+    '370.l.107101.t.4', '370.l.107101.t.5', '370.l.107101.t.6',
+    '370.l.107101.t.7', '370.l.107101.t.8', '370.l.107101.t.9',
+    '370.l.107101.t.10', '370.l.107101.t.11', '370.l.107101.t.12'
   ),
-  owner = c('bench', 'saud', 'eric', 'ptb', 'omar', 'carter',
-    'whet', 'alm', 'mintz', 'czap', 'mcard', 'mo'
+  owner = c('bench', 'omar', 'saud', 
+            'eric', 'when', 'mcard',
+            'mintz', 'czap', 'ptb', 
+            'carter', 'mo', 'alm'
   ),
   stringsAsFactors = FALSE
 )
@@ -81,8 +95,14 @@ clean_values <- function(df) {
   
   h  <- hpk2
   ab <- hpk2
-  h$value <- matrix(unlist(strsplit(h$value, split = '/')), ncol = 2, byrow = TRUE)[,1]
-  ab$value <- matrix(unlist(strsplit(ab$value, split = '/')), ncol = 2, byrow = TRUE)[,2]
+  h$value <- matrix(
+    unlist(strsplit(h$value, split = '/')), 
+    ncol = 2, byrow = TRUE
+  )[,1]
+  ab$value <- matrix(
+    unlist(strsplit(ab$value, split = '/')), 
+    ncol = 2, byrow = TRUE
+  )[,2]
   h$stat_id <- NA
   ab$stat_id <- NA
   h$stat_name <- 'H'
@@ -169,7 +189,7 @@ true_era_whip <- function(df) {
   whip_df$date <- as.Date(whip_df$date)
   whip_df$value <- as.character(whip_df$value)
   
-  dplyr::bind_rows(tbl_df(df), era_df, whip_df)
+  dplyr::bind_rows(dplyr::tbl_df(df), era_df, whip_df)
 }
 
 
@@ -268,7 +288,7 @@ hpk_clean <- hpk_cur %>%
   stat_metadata %>%
   clean_obp %>%
   clean_rows %>%
-  tbl_df()
+  dplyr::tbl_df()
 
 year_min <- hpk_clean %>%
   dplyr::mutate(
@@ -292,6 +312,44 @@ hpk_clean <- hpk_clean %>%
   dplyr::select(
     -year
   )
+
+```
+
+```{r eval = once_a_year}
+
+hpk_old_clean <- hpk_old %>%
+  clean_cols %>%
+  clean_rows %>%
+  true_era_whip %>%
+  clean_values %>%
+  stat_metadata %>%
+  clean_obp %>%
+  clean_rows %>%
+  dplyr::tbl_df()
+
+year_old_min <- hpk_old_clean %>%
+  dplyr::mutate(
+    year = as.numeric(format(as.Date(date), "%Y"))
+  ) %>%
+  dplyr::group_by(year) %>%
+  dplyr::summarize(
+    start_date = min(date),
+    end_date = max(date)
+  ) 
+
+hpk_old_clean <- hpk_old_clean %>%
+  dplyr::mutate(
+    year = as.numeric(format(as.Date(date), "%Y"))
+  ) %>%
+  dplyr::left_join(
+    year_old_min
+  ) %>%
+  dplyr::mutate(day_of_season = date - start_date) %>%
+  dplyr::mutate(days_till_end = end_date - date) %>%
+  dplyr::select(
+    -year
+  )
+
 
 ```
 
@@ -325,7 +383,7 @@ make_rolling <- function(df, n = c(2:60)) {
     print(i)
     df <- df %>%
       dplyr::mutate(
-        foo_mean = rollmeanr(x = value, k = quote(i), na.pad = TRUE) %>% round(3),
+        foo_mean = zoo::rollmeanr(x = value, k = quote(i), na.pad = TRUE) %>% round(3),
         foo_sd = rollapply(
           data = value, width = quote(i), align = 'right', fill = NA, FUN = sd
         ) %>% round(3)
@@ -358,8 +416,20 @@ now do it for current data
 ```{r cur_roll}
 
 #hpk_clean <- make_rolling(hpk_clean)
-hpk_clean <- make_rolling(hpk_clean, n = c(7, 14, 21, 28))
+#hpk_clean <- make_rolling(hpk_clean, n = c(7, 14, 21, 28))
+hpk_clean <- make_rolling(hpk_clean, n = c(1))
 
+```
+
+```{r eval = once_a_year}
+
+hpk_old_clean <- make_rolling(hpk_old_clean, n = c(7, 14, 21, 28, 35))
+
+```
+```{r eval = once_a_year}
+
+hpk_hist_thru_2016 <- dplyr::bind_rows(hpk_hist, hpk_old_clean)
+readr::write_csv(hpk_hist_thru_2016, path = 'hpk_historic_thru_2016.csv')
 ```
 
 get yesterday's data, last week's data, last month's data
@@ -369,7 +439,7 @@ get yesterday's data, last week's data, last month's data
 season_days <- hpk_clean$date %>% unique() %>% sort()
 
 n_days <- season_days %>% length()
-n_left <- (as.Date("2015-10-04") - Sys.Date()) %>% as.numeric
+n_left <- (as.Date("2017-10-01") - Sys.Date()) %>% as.numeric
 
 #get the last day of stats
 yesterday <- season_days[n_days]
@@ -380,7 +450,7 @@ hpk_yest <- hpk_clean %>% dplyr::filter(
 ) 
 
 hpk_week <- hpk_clean %>% dplyr::filter(
-  date <= yesterday & date >= season_days[n_days-6] 
+  date <= yesterday & date >=  yesterday - 6
 )
 
 hpk_2week <- hpk_clean %>% dplyr::filter(
@@ -1039,7 +1109,7 @@ sim_f <- sim_df
 sim_f$final_value <- ifelse(sim_f$stat_name %in% c('ERA', 'WHIP'), sim_f$final_value * -1, sim_f$final_value)
 
 sim_f <- sim_f %>%
-  tbl_df() %>%
+  dplyr::tbl_df() %>%
   dplyr::group_by(stat_name, sim) %>%
   dplyr::mutate(
     stat_rank = rank(final_value)
